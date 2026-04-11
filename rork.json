@@ -1,0 +1,9 @@
+{
+  "apps": [
+    {
+      "name": "FluidIQ kids",
+      "path": "expo",
+      "framework": "react-native"
+    }
+  ]
+}
