@@ -162,7 +162,7 @@ export default function TutorWallet() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 16, gap: 16 },
+  scroll: { padding: 16, gap: 16, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
   header: { paddingHorizontal: 4, paddingTop: 8 },
   title: { fontSize: 26, fontWeight: '700', color: COLORS.text },
   balanceCard: { backgroundColor: COLORS.primary, borderRadius: 18, padding: 20, gap: 6 },

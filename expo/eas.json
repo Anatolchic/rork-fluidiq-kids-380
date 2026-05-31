@@ -1,0 +1,39 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": false, "resourceClass": "m-medium" },
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://supabase.repetitory-app.ru",
+        "EXPO_PUBLIC_TURN_HOST": "5.35.87.176"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": { "simulator": false, "resourceClass": "m-medium" },
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://supabase.repetitory-app.ru",
+        "EXPO_PUBLIC_TURN_HOST": "5.35.87.176"
+      }
+    },
+    "production": {
+      "ios": { "resourceClass": "m-medium" },
+      "android": { "buildType": "app-bundle" },
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://supabase.repetitory-app.ru",
+        "EXPO_PUBLIC_TURN_HOST": "5.35.87.176"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": { "appleId": "", "ascAppId": "", "appleTeamId": "" },
+      "android": { "serviceAccountKeyPath": "./google-play-key.json", "track": "internal" }
+    }
+  }
+}

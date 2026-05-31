@@ -81,7 +81,7 @@ export default function StudentProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 20, gap: 20 },
+  scroll: { padding: 20, gap: 20, maxWidth: 600, alignSelf: 'center' as any, width: '100%' },
   avatarSection: { alignItems: 'center', paddingVertical: 20 },
   avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   avatarText: { fontSize: 32, fontWeight: '700', color: COLORS.primary },

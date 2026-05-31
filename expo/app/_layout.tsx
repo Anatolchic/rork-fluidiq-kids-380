@@ -69,6 +69,9 @@ export default function RootLayout() {
         <Stack.Screen name="review/[bookingId]" options={{ headerShown: true, title: 'Отзыв', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="support" options={{ headerShown: true, title: 'Поддержка', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="tutor-setup" options={{ headerShown: true, title: 'Профиль репетитора', headerBackTitle: 'Назад' }} />
+        <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
         <Stack.Screen name="tutor/[id]" options={{ headerShown: true, title: '', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="booking/new" options={{ headerShown: true, title: 'Запись на урок', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="booking/[id]" options={{ headerShown: true, title: 'Бронирование', headerBackTitle: 'Назад' }} />

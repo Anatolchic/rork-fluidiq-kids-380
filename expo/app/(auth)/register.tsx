@@ -20,19 +20,21 @@ export default function RegisterScreen() {
     if (password.length < 6) { Alert.alert('Ошибка', 'Пароль минимум 6 символов'); return; }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://web.repetitory-app.ru';
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: 'repetitory://auth/callback' },
+      options: { emailRedirectTo: `${origin}/(auth)/role-select` },
     });
     setLoading(false);
 
     if (error) { Alert.alert('Ошибка', error.message); return; }
-    Alert.alert(
-      'Проверьте почту',
-      'Мы отправили письмо для подтверждения email. После подтверждения выберите роль.',
-      [{ text: 'OK', onPress: () => router.replace('/(auth)/role-select') }]
-    );
+    // Если auto-confirm в Supabase отключён — session=null, нужно подтверждение email
+    if (data.session) {
+      router.replace('/(auth)/role-select');
+    } else {
+      router.replace({ pathname: '/(auth)/verify-email', params: { email } });
+    }
   }
 
   return (
@@ -77,7 +79,7 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 24 },
+  inner: { flex: 1, padding: 24, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
   header: { marginBottom: 32 },
   back: { marginBottom: 16 },
   backText: { color: COLORS.primary, fontSize: 16 },

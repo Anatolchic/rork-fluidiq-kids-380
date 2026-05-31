@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   empty: { fontSize: 16, color: COLORS.textSecondary },
-  scroll: { padding: 20, gap: 10, paddingBottom: 24 },
+  scroll: { padding: 20, gap: 10, paddingBottom: 24, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
   tutorName: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 8 },
   label: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginTop: 12 },

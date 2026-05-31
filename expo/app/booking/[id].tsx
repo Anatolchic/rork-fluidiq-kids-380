@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   empty: { fontSize: 16, color: COLORS.textSecondary },
-  scroll: { padding: 16, gap: 12, paddingBottom: 24 },
+  scroll: { padding: 16, gap: 12, paddingBottom: 24, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
   statusCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20, alignItems: 'center', gap: 8 },
   statusPill: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
   statusText: { fontSize: 13, fontWeight: '700' },

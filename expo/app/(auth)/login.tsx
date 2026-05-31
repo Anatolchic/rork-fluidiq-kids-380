@@ -7,11 +7,13 @@ import {
 import { router } from 'expo-router';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
+import { useResponsive } from '../../lib/responsive';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { contentMaxWidth } = useResponsive();
 
   async function handleLogin() {
     if (!email || !password) { Alert.alert('Ошибка', 'Заполните все поля'); return; }
@@ -61,6 +63,10 @@ export default function LoginScreen() {
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Войти</Text>}
           </TouchableOpacity>
 
+          <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
+            <Text style={styles.forgotLink}>Забыли пароль?</Text>
+          </TouchableOpacity>
+
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>или</Text>
@@ -87,7 +93,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 24, justifyContent: 'center' },
+  inner: { flex: 1, padding: 24, justifyContent: 'center', maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
+  forgotLink: { color: COLORS.primary, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 6 },
   header: { alignItems: 'center', marginBottom: 40 },
   logo: { fontSize: 64, marginBottom: 8 },
   title: { fontSize: 32, fontWeight: '700', color: COLORS.text, marginBottom: 4 },

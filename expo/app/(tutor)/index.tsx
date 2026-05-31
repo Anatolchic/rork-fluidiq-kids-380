@@ -146,7 +146,7 @@ function getStatusColor(s: string): string {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  scroll: { padding: 16, gap: 16 },
+  scroll: { padding: 16, gap: 16, maxWidth: 880, alignSelf: 'center' as any, width: '100%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, paddingTop: 8 },
   greeting: { fontSize: 14, color: COLORS.textSecondary },
   name: { fontSize: 26, fontWeight: '700', color: COLORS.text },

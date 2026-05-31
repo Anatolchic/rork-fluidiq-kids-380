@@ -137,10 +137,10 @@ export default function TutorSchedule() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  header: { padding: 20, paddingBottom: 8 },
+  header: { padding: 20, paddingBottom: 8, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
   title: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  scroll: { padding: 16, gap: 10 },
+  scroll: { padding: 16, gap: 10, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
   dayCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: COLORS.border },
   dayCardActive: { borderColor: COLORS.primary + '40' },
   dayInfo: { flex: 1, gap: 4 },

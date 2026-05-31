@@ -187,7 +187,7 @@ export default function TutorProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 16, gap: 14, paddingBottom: 32 },
+  scroll: { padding: 16, gap: 14, paddingBottom: 32, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
   title: { fontSize: 26, fontWeight: '700', color: COLORS.text, paddingHorizontal: 4, marginVertical: 8 },
   card: { backgroundColor: COLORS.white, borderRadius: 14, padding: 16, gap: 10 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
