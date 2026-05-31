@@ -5,13 +5,34 @@ import { Platform } from 'react-native';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-const SecureStoreAdapter = {
-  getItem: (key: string) => Platform.OS === 'web' ? Promise.resolve(localStorage.getItem(key)) : SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => { if (Platform.OS === 'web') { localStorage.setItem(key, value); return Promise.resolve(); } return SecureStore.setItemAsync(key, value); },
-  removeItem: (key: string) => { if (Platform.OS === 'web') { localStorage.removeItem(key); return Promise.resolve(); } return SecureStore.deleteItemAsync(key); },
+const isBrowser = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+const WebStorageAdapter = {
+  getItem: (key: string) => Promise.resolve(isBrowser ? window.localStorage.getItem(key) : null),
+  setItem: (key: string, value: string) => {
+    if (isBrowser) window.localStorage.setItem(key, value);
+    return Promise.resolve();
+  },
+  removeItem: (key: string) => {
+    if (isBrowser) window.localStorage.removeItem(key);
+    return Promise.resolve();
+  },
 };
 
+const NativeStorageAdapter = {
+  getItem: (key: string) => SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+};
+
+const storage = Platform.OS === 'web' ? WebStorageAdapter : NativeStorageAdapter;
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { storage: SecureStoreAdapter as any, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
+  auth: {
+    storage: storage as any,
+    autoRefreshToken: isBrowser || Platform.OS !== 'web',
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
 });
 export default supabase;
