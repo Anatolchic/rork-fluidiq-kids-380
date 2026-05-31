@@ -48,7 +48,6 @@ export default function RootLayout() {
       if (!ready) {
         if (data.role === 'student') router.replace('/(student)');
         else if (data.role === 'tutor') router.replace('/(tutor)');
-        else if (data.role === 'admin') router.replace('/(admin)');
       }
     } else {
       router.replace('/(auth)/role-select');
