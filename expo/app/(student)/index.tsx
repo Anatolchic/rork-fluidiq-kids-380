@@ -8,8 +8,10 @@ import { router } from 'expo-router';
 import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS } from '../../lib/constants';
 import { TutorProfile } from '../../lib/types';
+import { useResponsive } from '../../lib/responsive';
 
 export default function StudentCatalog() {
+  const { gridCols, contentMaxWidth, isDesktop } = useResponsive();
   const [tutors, setTutors] = useState<TutorProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -133,9 +135,12 @@ export default function StudentCatalog() {
       ) : (
         <FlatList
           data={filteredTutors}
+          key={`grid-${gridCols}`}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => <TutorCard tutor={item} />}
-          contentContainerStyle={styles.list}
+          renderItem={({ item }) => <TutorCard tutor={item} compact={gridCols > 1} />}
+          numColumns={gridCols}
+          columnWrapperStyle={gridCols > 1 ? { gap: 12, justifyContent: 'flex-start' } : undefined}
+          contentContainerStyle={[styles.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -150,10 +155,10 @@ export default function StudentCatalog() {
   );
 }
 
-function TutorCard({ tutor }: { tutor: TutorProfile }) {
+function TutorCard({ tutor, compact }: { tutor: TutorProfile; compact?: boolean }) {
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, compact && { flex: 1, minWidth: 240 }]}
       onPress={() => router.push(`/tutor/${tutor.user_id}`)}
       activeOpacity={0.7}
     >
