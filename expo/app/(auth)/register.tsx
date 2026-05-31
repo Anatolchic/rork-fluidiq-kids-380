@@ -12,10 +12,12 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleRegister() {
     if (!email || !password || !confirmPassword) { Alert.alert('Ошибка', 'Заполните все поля'); return; }
+    if (!agreed) { Alert.alert('Согласие', 'Подтвердите согласие с условиями использования и обработкой персональных данных'); return; }
     if (password !== confirmPassword) { Alert.alert('Ошибка', 'Пароли не совпадают'); return; }
     if (password.length < 6) { Alert.alert('Ошибка', 'Пароль минимум 6 символов'); return; }
 
@@ -60,7 +62,20 @@ export default function RegisterScreen() {
               value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry
               placeholderTextColor={COLORS.textSecondary} />
 
-            <TouchableOpacity style={styles.btnPrimary} onPress={handleRegister} disabled={loading}>
+            <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(!agreed)} activeOpacity={0.7}>
+              <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+                {agreed && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={styles.agreeText}>
+                Я согласен с{' '}
+                <Text style={styles.agreeLink} onPress={() => { if (typeof window !== 'undefined') window.open('https://repetitory-app.ru/terms.html', '_blank'); }}>условиями использования</Text>
+                {' '}и{' '}
+                <Text style={styles.agreeLink} onPress={() => { if (typeof window !== 'undefined') window.open('https://repetitory-app.ru/privacy.html', '_blank'); }}>политикой обработки персональных данных</Text>
+                {' '}в соответствии с ФЗ-152.
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.btnPrimary, (!agreed || loading) && { opacity: 0.5 }]} onPress={handleRegister} disabled={!agreed || loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Зарегистрироваться</Text>}
             </TouchableOpacity>
           </View>
@@ -99,4 +114,10 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
   footerText: { color: COLORS.textSecondary, fontSize: 14 },
   footerLink: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 8, marginBottom: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
+  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  checkmark: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  agreeText: { flex: 1, fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  agreeLink: { color: COLORS.primary, fontWeight: '600', textDecorationLine: 'underline' },
 });

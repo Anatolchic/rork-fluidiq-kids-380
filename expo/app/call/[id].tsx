@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Mic, MicOff, Video as VideoOn, VideoOff, PhoneOff, RefreshCw, PenTool, Eraser, Trash2, X } from 'lucide-react-native';
+import { Mic, MicOff, Video as VideoOn, VideoOff, PhoneOff, RefreshCw, PenTool, Eraser, Trash2, X, Monitor, MonitorOff } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
@@ -23,6 +23,7 @@ export default function CallScreen() {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [boardOn, setBoardOn] = useState(false);
+  const [screenOn, setScreenOn] = useState(false);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [color, setColor] = useState(PALETTE[0]);
   const [size, setSize] = useState(SIZES[0]);
@@ -282,6 +283,44 @@ export default function CallScreen() {
     tracks.forEach(t => (t.enabled = !t.enabled));
     setCamOn(tracks[0]?.enabled ?? false);
   }
+
+  async function toggleScreenShare() {
+    const pc = pcRef.current;
+    if (!pc || !localStreamRef.current) return;
+    const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+    if (!videoSender) return;
+
+    if (!screenOn) {
+      try {
+        const screen = await (navigator.mediaDevices as any).getDisplayMedia({
+          video: { frameRate: { ideal: 15, max: 30 } },
+          audio: false,
+        });
+        const screenTrack = screen.getVideoTracks()[0];
+        await videoSender.replaceTrack(screenTrack);
+        if (localVideoRef.current) (localVideoRef.current as any).srcObject = screen;
+        setScreenOn(true);
+        screenTrack.onended = () => stopScreenShare();
+        // Уменьшим битрейт для шаринга экрана (текст важнее fps)
+        applyBitrateLimit(pc, 2500).catch(() => {});
+      } catch (e: any) {
+        if (e.name !== 'NotAllowedError') Alert.alert('Не удалось включить шаринг экрана', e.message);
+      }
+    } else {
+      stopScreenShare();
+    }
+  }
+
+  async function stopScreenShare() {
+    const pc = pcRef.current;
+    const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
+    if (!pc || !cameraTrack) return;
+    const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+    if (videoSender) await videoSender.replaceTrack(cameraTrack);
+    if (localVideoRef.current) (localVideoRef.current as any).srcObject = localStreamRef.current;
+    setScreenOn(false);
+    applyBitrateLimit(pc, 1500).catch(() => {});
+  }
   async function hangup() {
     sendSignal('bye', {});
     teardown(); setStatus('ended');
@@ -397,6 +436,9 @@ export default function CallScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={[styles.ctrlBtn, boardOn && styles.ctrlBtnPrimary]} onPress={() => setBoardOn(!boardOn)}>
           {boardOn ? <X size={22} color="#fff" /> : <PenTool size={22} color="#fff" />}
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.ctrlBtn, screenOn && styles.ctrlBtnPrimary]} onPress={toggleScreenShare}>
+          {screenOn ? <MonitorOff size={22} color="#fff" /> : <Monitor size={22} color="#fff" />}
         </TouchableOpacity>
         <TouchableOpacity style={styles.hangupBtn} onPress={hangup}>
           <PhoneOff size={26} color="#fff" />
