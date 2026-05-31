@@ -1,0 +1,284 @@
+import { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
+import { format, addDays, isSameDay, startOfDay, addMinutes, isBefore } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import supabase from '../../lib/supabase';
+import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS } from '../../lib/constants';
+import { TutorProfile, TutorAvailability, Booking, LessonDuration, Subject, Level } from '../../lib/types';
+import { useAuthStore } from '../../stores/auth';
+
+const DAYS_AHEAD = 14;
+const SLOT_INTERVAL_MIN = 30;
+
+type Slot = { iso: string; label: string; isBusy: boolean };
+
+export default function BookingNew() {
+  const { tutor: tutorId } = useLocalSearchParams<{ tutor: string }>();
+  const { session } = useAuthStore();
+
+  const [tutor, setTutor] = useState<TutorProfile | null>(null);
+  const [availability, setAvailability] = useState<TutorAvailability[]>([]);
+  const [busy, setBusy] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [duration, setDuration] = useState<LessonDuration>(60);
+  const [subject, setSubject] = useState<Subject | null>(null);
+  const [level, setLevel] = useState<Level | null>(null);
+  const [topic, setTopic] = useState('');
+
+  useEffect(() => { if (tutorId) load(); }, [tutorId]);
+
+  async function load() {
+    setLoading(true);
+    const [t, a, b] = await Promise.all([
+      supabase.from('tutor_profiles').select('*').eq('user_id', tutorId).maybeSingle(),
+      supabase.from('tutor_availability').select('*').eq('tutor_id', tutorId),
+      supabase.from('bookings').select('*').eq('tutor_id', tutorId).gte('start_time', new Date().toISOString()).in('status', ['pending', 'confirmed', 'active']),
+    ]);
+    if (t.data) {
+      setTutor(t.data);
+      setDuration(t.data.min_duration);
+      if (t.data.subjects?.[0]) setSubject(t.data.subjects[0]);
+      if (t.data.levels?.[0]) setLevel(t.data.levels[0]);
+    }
+    setAvailability(a.data || []);
+    setBusy(b.data || []);
+    setLoading(false);
+  }
+
+  const availableDates = useMemo(() => {
+    const today = startOfDay(new Date());
+    const dates: Date[] = [];
+    for (let i = 0; i < DAYS_AHEAD; i++) {
+      const d = addDays(today, i);
+      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      if (availability.some(a => a.day_of_week === dow)) dates.push(d);
+    }
+    return dates;
+  }, [availability]);
+
+  const slotsForDate = useMemo<Slot[]>(() => {
+    if (!selectedDate) return [];
+    const dow = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1;
+    const slot = availability.find(a => a.day_of_week === dow);
+    if (!slot) return [];
+    const [sh, sm] = slot.start_time.split(':').map(Number);
+    const [eh, em] = slot.end_time.split(':').map(Number);
+    const start = new Date(selectedDate); start.setHours(sh, sm, 0, 0);
+    const end = new Date(selectedDate); end.setHours(eh, em, 0, 0);
+    const now = new Date();
+    const out: Slot[] = [];
+    let cur = new Date(start);
+    while (isBefore(addMinutes(cur, duration), end) || +addMinutes(cur, duration) === +end) {
+      const slotEnd = addMinutes(cur, duration);
+      const isBusy = busy.some(b => {
+        const bs = new Date(b.start_time); const be = new Date(b.end_time);
+        return cur < be && slotEnd > bs;
+      });
+      const inPast = isBefore(cur, now);
+      out.push({ iso: cur.toISOString(), label: format(cur, 'HH:mm'), isBusy: isBusy || inPast });
+      cur = addMinutes(cur, SLOT_INTERVAL_MIN);
+    }
+    return out;
+  }, [selectedDate, availability, busy, duration]);
+
+  function canBook(): boolean {
+    return !!tutor && !!session && !!selectedDate && !!selectedTime && !!subject && !!level;
+  }
+
+  async function book() {
+    if (!canBook() || !tutor || !session) return;
+    setSaving(true);
+    try {
+      const start = new Date(selectedTime!);
+      const end = addMinutes(start, duration);
+      const price = Math.round((tutor.price_per_hour * duration) / 60);
+      const status = tutor.auto_confirm ? 'confirmed' : 'pending';
+
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          student_id: session.user.id,
+          tutor_id: tutor.user_id,
+          subject,
+          level,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          duration,
+          topic: topic.trim() || null,
+          status,
+          price,
+        })
+        .select('id')
+        .single();
+      if (bookingError) throw bookingError;
+
+      await supabase.from('chat_rooms').insert({
+        booking_id: bookingData.id,
+        student_id: session.user.id,
+        tutor_id: tutor.user_id,
+      });
+
+      router.replace(`/booking/${bookingData.id}`);
+    } catch (e: any) {
+      Alert.alert('Не удалось забронировать', e.message || 'Попробуйте ещё раз');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  if (!tutor) return <View style={styles.loader}><Text style={styles.empty}>Репетитор не найден</Text></View>;
+
+  const subjects = tutor.subjects || [];
+  const levels = tutor.levels || [];
+  const allowedDurations = LESSON_DURATIONS.filter(d => d.value >= tutor.min_duration);
+  const priceForChoice = Math.round((tutor.price_per_hour * duration) / 60) / 100;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <Text style={styles.title}>Запись к репетитору</Text>
+          <Text style={styles.tutorName}>👤 {tutor.name}</Text>
+
+          <Text style={styles.label}>Предмет</Text>
+          <View style={styles.chipsWrap}>
+            {subjects.map(s => (
+              <TouchableOpacity key={s} style={[styles.chip, subject === s && styles.chipActive]} onPress={() => setSubject(s)}>
+                <Text style={[styles.chipText, subject === s && styles.chipTextActive]}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Уровень</Text>
+          <View style={styles.chipsWrap}>
+            {levels.map(l => (
+              <TouchableOpacity key={l} style={[styles.chip, level === l && styles.chipActive]} onPress={() => setLevel(l)}>
+                <Text style={[styles.chipText, level === l && styles.chipTextActive]}>{l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Длительность</Text>
+          <View style={styles.chipsWrap}>
+            {allowedDurations.map(d => (
+              <TouchableOpacity key={d.value} style={[styles.durBtn, duration === d.value && styles.durBtnActive]} onPress={() => { setDuration(d.value as LessonDuration); setSelectedTime(null); }}>
+                <Text style={[styles.durText, duration === d.value && styles.durTextActive]}>{d.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Дата</Text>
+          {availableDates.length === 0 ? (
+            <Text style={styles.warn}>Репетитор не задал расписание</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
+              {availableDates.map(d => {
+                const active = selectedDate && isSameDay(d, selectedDate);
+                return (
+                  <TouchableOpacity key={d.toISOString()} style={[styles.dateBtn, active && styles.dateBtnActive]} onPress={() => { setSelectedDate(d); setSelectedTime(null); }}>
+                    <Text style={[styles.dateDow, active && styles.dateTextActive]}>{format(d, 'EEE', { locale: ru })}</Text>
+                    <Text style={[styles.dateDay, active && styles.dateTextActive]}>{format(d, 'd')}</Text>
+                    <Text style={[styles.dateMonth, active && styles.dateTextActive]}>{format(d, 'LLL', { locale: ru })}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {selectedDate && (
+            <>
+              <Text style={styles.label}>Время</Text>
+              {slotsForDate.length === 0 ? (
+                <Text style={styles.warn}>В этот день нет свободных слотов</Text>
+              ) : (
+                <View style={styles.timeWrap}>
+                  {slotsForDate.map(s => (
+                    <TouchableOpacity
+                      key={s.iso}
+                      style={[styles.timeBtn, selectedTime === s.iso && styles.timeBtnActive, s.isBusy && styles.timeBtnBusy]}
+                      disabled={s.isBusy}
+                      onPress={() => setSelectedTime(s.iso)}
+                    >
+                      <Text style={[styles.timeText, selectedTime === s.iso && styles.timeTextActive, s.isBusy && styles.timeTextBusy]}>{s.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          <Text style={styles.label}>Тема (необязательно)</Text>
+          <TextInput
+            style={styles.input}
+            value={topic}
+            onChangeText={setTopic}
+            placeholder="Например: подготовка к ЕГЭ, профильная математика"
+            placeholderTextColor={COLORS.textSecondary}
+            maxLength={200}
+          />
+
+          <View style={styles.summary}>
+            <Text style={styles.summaryLine}>Длительность: <Text style={styles.summaryBold}>{duration} минут</Text></Text>
+            <Text style={styles.summaryLine}>К оплате репетитору: <Text style={styles.summaryBold}>{priceForChoice.toLocaleString('ru')} ₽</Text></Text>
+            <Text style={styles.summaryHint}>Оплата происходит напрямую репетитору указанным им способом после подтверждения брони.</Text>
+          </View>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={[styles.bookBtn, (!canBook() || saving) && styles.bookBtnDisabled]} disabled={!canBook() || saving} onPress={book}>
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.bookBtnText}>{tutor.auto_confirm ? 'Забронировать' : 'Отправить заявку'}</Text>}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
+  empty: { fontSize: 16, color: COLORS.textSecondary },
+  scroll: { padding: 20, gap: 10, paddingBottom: 24 },
+  title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
+  tutorName: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 8 },
+  label: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginTop: 12 },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border },
+  chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipText: { fontSize: 13, color: COLORS.text },
+  chipTextActive: { color: '#fff', fontWeight: '600' },
+  durBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 84, alignItems: 'center' },
+  durBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  durText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  durTextActive: { color: '#fff' },
+  dateScroll: { gap: 8, paddingVertical: 4 },
+  dateBtn: { width: 64, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border },
+  dateBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  dateDow: { fontSize: 11, color: COLORS.textSecondary, textTransform: 'uppercase' },
+  dateDay: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginVertical: 2 },
+  dateMonth: { fontSize: 11, color: COLORS.textSecondary },
+  dateTextActive: { color: '#fff' },
+  timeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  timeBtn: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 70, alignItems: 'center' },
+  timeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  timeBtnBusy: { backgroundColor: COLORS.background, opacity: 0.4 },
+  timeText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  timeTextActive: { color: '#fff' },
+  timeTextBusy: { textDecorationLine: 'line-through' },
+  warn: { fontSize: 13, color: COLORS.warning, padding: 12, backgroundColor: COLORS.warning + '15', borderRadius: 10 },
+  input: { backgroundColor: COLORS.white, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border, fontSize: 14, color: COLORS.text },
+  summary: { backgroundColor: COLORS.primaryLight, borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
+  summaryLine: { fontSize: 14, color: COLORS.text },
+  summaryBold: { fontWeight: '700' },
+  summaryHint: { fontSize: 11, color: COLORS.textSecondary, marginTop: 6, lineHeight: 16 },
+  footer: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 24 : 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background },
+  bookBtn: { height: 56, backgroundColor: COLORS.primary, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  bookBtnDisabled: { opacity: 0.4 },
+  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+});
