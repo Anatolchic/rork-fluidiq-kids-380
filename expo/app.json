@@ -1,45 +1,49 @@
 {
   "expo": {
     "name": "Репетиторы",
-    "slug": "fluidiqkidsnew",
-    "version": "1.3.0",
+    "slug": "repetitory-app",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
-    "userInterfaceStyle": "automatic",
+    "scheme": "repetitory",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#000000"
-    },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "app.repetitory.repetitory"
+      "supportsTablet": false,
+      "bundleIdentifier": "ru.repetitory.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Камера нужна для видеоуроков",
+        "NSMicrophoneUsageDescription": "Микрофон нужен для видеоуроков",
+        "NSPhotoLibraryUsageDescription": "Доступ к фото для профиля"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#6C63FF"
       },
-      "package": "app.repetitory.repetitory",
+      "package": "ru.repetitory.app",
       "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "INTERNET"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_NETWORK_STATE"
       ]
     },
     "web": {
+      "bundler": "metro",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-router",
+      "expo-secure-store",
       [
-        "expo-router",
+        "expo-notifications",
         {
-          "origin": "https://rork.com/"
+          "icon": "./assets/images/icon.png",
+          "color": "#6C63FF"
         }
-      ],
-      "expo-font",
-      "expo-web-browser"
+      ]
     ],
     "experiments": {
       "typedRoutes": true

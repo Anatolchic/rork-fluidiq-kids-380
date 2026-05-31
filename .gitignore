@@ -1,3 +1,12 @@
 node_modules
 .env
+.env.local
 .expo
+dist
+.DS_Store
+*.log
+.vscode
+.idea
+ios/build
+android/build
+android/.gradle
