@@ -8,6 +8,7 @@ import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS } from '../../lib/constants';
 import { Booking } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import { ListSkeleton } from '../../lib/Skeleton';
 
 type Tab = 'pending' | 'upcoming' | 'past';
 
@@ -72,7 +73,7 @@ export default function TutorBookings() {
       </View>
 
       {loading ? (
-        <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        <ListSkeleton count={3} />
       ) : (
         <FlatList
           data={bookings}

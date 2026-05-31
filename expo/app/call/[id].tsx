@@ -28,8 +28,10 @@ export default function CallScreen() {
   const [color, setColor] = useState(PALETTE[0]);
   const [size, setSize] = useState(SIZES[0]);
   const [elapsed, setElapsed] = useState(0);
+  const [quality, setQuality] = useState<'excellent' | 'good' | 'fair' | 'poor' | 'unknown'>('unknown');
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const statsTimerRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -66,11 +68,42 @@ export default function CallScreen() {
   useEffect(() => {
     if (status === 'connected') {
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+      statsTimerRef.current = setInterval(measureQuality, 3000);
+      measureQuality();
     } else if (timerRef.current) {
       clearInterval(timerRef.current); timerRef.current = null;
+      if (statsTimerRef.current) { clearInterval(statsTimerRef.current); statsTimerRef.current = null; }
+      setQuality('unknown');
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (statsTimerRef.current) clearInterval(statsTimerRef.current);
+    };
   }, [status]);
+
+  async function measureQuality() {
+    const pc = pcRef.current;
+    if (!pc) return;
+    try {
+      const stats = await pc.getStats();
+      let inboundVideo: any = null;
+      let candidatePair: any = null;
+      stats.forEach((r: any) => {
+        if (r.type === 'inbound-rtp' && r.kind === 'video') inboundVideo = r;
+        if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) candidatePair = r;
+      });
+      const rtt = candidatePair?.currentRoundTripTime ?? 0;
+      const packetsLost = inboundVideo?.packetsLost ?? 0;
+      const packetsReceived = inboundVideo?.packetsReceived ?? 1;
+      const lossRatio = packetsLost / Math.max(packetsLost + packetsReceived, 1);
+      // Quality grade
+      let g: typeof quality = 'excellent';
+      if (rtt > 0.3 || lossRatio > 0.05) g = 'poor';
+      else if (rtt > 0.2 || lossRatio > 0.02) g = 'fair';
+      else if (rtt > 0.1 || lossRatio > 0.005) g = 'good';
+      setQuality(g);
+    } catch {}
+  }
 
   function attachLocalStream(stream: MediaStream) {
     localStreamRef.current = stream;
@@ -395,11 +428,17 @@ export default function CallScreen() {
         <video ref={(r: any) => (localVideoRef.current = r)} autoPlay playsInline muted style={{ display: 'none' }} />
       )}
 
-      {/* Timer */}
+      {/* Timer + quality */}
       {status === 'connected' && (
         <View style={styles.timerPill}>
           <View style={styles.dotLive} />
           <Text style={styles.timerText}>{mmss}</Text>
+          <View style={styles.qualBars}>
+            {[1, 2, 3, 4].map(b => {
+              const active = qualityLevel(quality) >= b;
+              return <View key={b} style={[styles.qualBar, { height: 4 + b * 2, backgroundColor: active ? qualityColor(quality) : '#ffffff33' }]} />;
+            })}
+          </View>
         </View>
       )}
 
@@ -451,6 +490,13 @@ export default function CallScreen() {
   );
 }
 
+function qualityLevel(q: string): number {
+  return q === 'excellent' ? 4 : q === 'good' ? 3 : q === 'fair' ? 2 : q === 'poor' ? 1 : 0;
+}
+function qualityColor(q: string): string {
+  return q === 'excellent' || q === 'good' ? '#4CAF50' : q === 'fair' ? '#FF9800' : q === 'poor' ? '#F44336' : '#ffffff66';
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0c0c1f' },
   remoteWrap: { flex: 1, backgroundColor: '#000', position: 'relative' },
@@ -464,9 +510,11 @@ const styles = StyleSheet.create({
   localWrap: { position: 'absolute', top: 16, right: 16, width: 140, height: 200, borderRadius: 12, overflow: 'hidden', borderWidth: 2, borderColor: '#ffffff20', backgroundColor: '#1a1a1a' },
   localOff: { position: 'absolute', inset: 0 as any, top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1aee' },
   localOffText: { color: '#ffffff80', fontSize: 11 },
-  timerPill: { position: 'absolute', top: 16, left: '50%' as any, marginLeft: -48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#00000099', borderRadius: 20, borderWidth: 1, borderColor: '#ffffff20' },
+  timerPill: { position: 'absolute', top: 16, left: '50%' as any, marginLeft: -68, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#00000099', borderRadius: 20, borderWidth: 1, borderColor: '#ffffff20' },
   dotLive: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ff4444' },
   timerText: { color: '#fff', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  qualBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 14 },
+  qualBar: { width: 3, borderRadius: 1 },
   boardToolbar: { position: 'absolute', bottom: 110, left: '50%' as any, transform: [{ translateX: -180 } as any], flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#000000cc', borderRadius: 14, borderWidth: 1, borderColor: '#ffffff20', backdropFilter: 'blur(8px)' as any },
   toolBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#ffffff15', justifyContent: 'center', alignItems: 'center' },
   toolBtnActive: { backgroundColor: COLORS.primary },

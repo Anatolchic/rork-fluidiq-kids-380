@@ -19,25 +19,59 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [peerTyping, setPeerTyping] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
+  const channelRef = useRef<any>(null);
+  const typingTimerRef = useRef<any>(null);
+  const peerTypingTimerRef = useRef<any>(null);
 
   useEffect(() => {
     if (!roomId) return;
     load();
     const channel = supabase
-      .channel(`messages:${roomId}`)
+      .channel(`messages:${roomId}`, { config: { broadcast: { ack: false } } })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
         setMessages(prev => prev.some(m => m.id === (payload.new as Message).id) ? prev : [...prev, payload.new as Message]);
+        markRead();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
+        const upd = payload.new as Message;
+        setMessages(prev => prev.map(m => m.id === upd.id ? upd : m));
+      })
+      .on('broadcast', { event: 'typing' }, ({ payload }: any) => {
+        if (payload?.from && payload.from !== session?.user.id) {
+          setPeerTyping(true);
+          if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current);
+          peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 3000);
+        }
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [roomId]);
+    channelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current);
+    };
+  }, [roomId, session?.user.id]);
 
   async function load() {
     setLoading(true);
     const { data } = await supabase.from('messages').select('*').eq('room_id', roomId).order('created_at', { ascending: true }).limit(200);
     setMessages(data || []);
     setLoading(false);
+    markRead();
+  }
+
+  async function markRead() {
+    if (!roomId) return;
+    supabase.rpc('mark_messages_read', { p_room_id: roomId }).then(() => {});
+  }
+
+  function emitTyping() {
+    if (!channelRef.current || !session) return;
+    if (typingTimerRef.current) return; // throttle 2 сек
+    channelRef.current.send({ type: 'broadcast', event: 'typing', payload: { from: session.user.id } });
+    typingTimerRef.current = setTimeout(() => { typingTimerRef.current = null; }, 2000);
   }
 
   useEffect(() => {
@@ -88,6 +122,7 @@ export default function ChatScreen() {
     const isOwn = item.sender_id === session?.user.id;
     const prev = index > 0 ? messages[index - 1] : null;
     const showDate = !prev || !isSameDay(new Date(item.created_at), new Date(prev.created_at));
+    const isRead = !!(item as any).read_at;
     return (
       <View>
         {showDate && (
@@ -100,7 +135,10 @@ export default function ChatScreen() {
             ) : (
               <Text style={[styles.msgText, isOwn && styles.msgTextOwn]}>{item.content}</Text>
             )}
-            <Text style={[styles.time, isOwn && styles.timeOwn]}>{format(new Date(item.created_at), 'HH:mm')}</Text>
+            <View style={styles.metaRow}>
+              <Text style={[styles.time, isOwn && styles.timeOwn]}>{format(new Date(item.created_at), 'HH:mm')}</Text>
+              {isOwn && <Text style={[styles.readMark, { color: isRead ? '#3ddc84' : '#ffffff80' }]}>{isRead ? '✓✓' : '✓'}</Text>}
+            </View>
           </View>
         </View>
       </View>
@@ -126,6 +164,11 @@ export default function ChatScreen() {
             </View>
           }
         />
+        {peerTyping && (
+          <View style={styles.typingRow}>
+            <Text style={styles.typingText}>печатает…</Text>
+          </View>
+        )}
         <View style={styles.inputBar}>
           <TouchableOpacity style={styles.attachBtn} onPress={attachImage} disabled={uploading}>
             {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <Paperclip size={20} color={COLORS.primary} />}
@@ -133,7 +176,7 @@ export default function ChatScreen() {
           <TextInput
             style={styles.input}
             value={text}
-            onChangeText={setText}
+            onChangeText={t => { setText(t); if (t) emitTyping(); }}
             placeholder="Сообщение"
             placeholderTextColor={COLORS.textSecondary}
             multiline
@@ -160,8 +203,12 @@ const styles = StyleSheet.create({
   msgText: { fontSize: 15, color: COLORS.text, lineHeight: 20 },
   msgTextOwn: { color: '#fff' },
   attachImg: { width: 220, height: 220, borderRadius: 10, marginVertical: 2 },
-  time: { fontSize: 10, color: COLORS.textSecondary, alignSelf: 'flex-end', marginTop: 2 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 4, marginTop: 2 },
+  time: { fontSize: 10, color: COLORS.textSecondary },
   timeOwn: { color: '#ffffffaa' },
+  readMark: { fontSize: 11, fontWeight: '700' },
+  typingRow: { paddingHorizontal: 16, paddingVertical: 4 },
+  typingText: { fontSize: 12, color: COLORS.textSecondary, fontStyle: 'italic' },
   dateChip: { alignSelf: 'center', backgroundColor: COLORS.background, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginVertical: 6 },
   dateText: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' },
   empty: { alignItems: 'center', paddingTop: 80, gap: 6 },

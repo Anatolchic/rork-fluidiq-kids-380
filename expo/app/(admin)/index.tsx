@@ -4,9 +4,11 @@ import { router } from 'expo-router';
 import { Users, GraduationCap, Calendar, DollarSign, MessageSquare, TrendingUp, Star, UserCog } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
+import { LineChart, BarChart } from '../../lib/Chart';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
+  const [charts, setCharts] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { width } = useWindowDimensions();
@@ -16,8 +18,12 @@ export default function AdminDashboard() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.rpc('admin_dashboard_stats');
-    setStats(data || {});
+    const [s, c] = await Promise.all([
+      supabase.rpc('admin_dashboard_stats'),
+      supabase.rpc('admin_chart_data'),
+    ]);
+    setStats(s.data || {});
+    setCharts(c.data || null);
     setLoading(false);
   }
 
@@ -66,6 +72,16 @@ export default function AdminDashboard() {
             );
           })}
         </View>
+
+        {charts && (
+          <View style={{ gap: 12, marginTop: 8 }}>
+            <Text style={s.sectionTitle}>Динамика за 30 дней</Text>
+            <LineChart title="Регистрации" data={charts.registrations || []} labels={charts.days || []} color="#6C63FF" />
+            <BarChart title="Бронирования" data={charts.bookings || []} labels={charts.days || []} color="#a78bfa" />
+            <LineChart title="Комиссия (₽)" data={charts.commission_rub || []} labels={charts.days || []} color="#4CAF50" unit="₽" />
+            <LineChart title="DAU" data={charts.dau || []} labels={charts.days || []} color="#FF6584" />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -83,4 +99,5 @@ const s = StyleSheet.create({
   iconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   statValue: { fontSize: 22, fontWeight: '800', color: COLORS.text, marginTop: 2 },
   statLabel: { fontSize: 12, color: COLORS.textSecondary },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, paddingHorizontal: 4, marginTop: 8 },
 });

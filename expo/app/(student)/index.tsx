@@ -9,6 +9,7 @@ import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS } from '../../lib/constants';
 import { TutorProfile } from '../../lib/types';
 import { useResponsive } from '../../lib/responsive';
+import { TutorCardSkeleton } from '../../lib/Skeleton';
 
 export default function StudentCatalog() {
   const { gridCols, contentMaxWidth, isDesktop } = useResponsive();
@@ -129,8 +130,8 @@ export default function StudentCatalog() {
 
       {/* Список */}
       {loading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={[styles.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
+          {Array.from({ length: 4 }).map((_, i) => <TutorCardSkeleton key={i} />)}
         </View>
       ) : (
         <FlatList
