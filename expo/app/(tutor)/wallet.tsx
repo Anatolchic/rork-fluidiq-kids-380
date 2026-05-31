@@ -20,18 +20,33 @@ export default function TutorWallet() {
   const [topupOpen, setTopupOpen] = useState(false);
   const [amount, setAmount] = useState('1000');
   const [paying, setPaying] = useState(false);
+  const [testMode, setTestMode] = useState(false);
 
   useEffect(() => { if (session) load(); }, [session]);
 
   async function load() {
     setLoading(true);
-    const [p, h] = await Promise.all([
+    const [p, h, s] = await Promise.all([
       supabase.from('tutor_profiles').select('*').eq('user_id', session!.user.id).single(),
       supabase.from('payments').select('*').eq('tutor_id', session!.user.id).order('created_at', { ascending: false }).limit(30),
+      supabase.from('app_settings').select('test_mode').limit(1).maybeSingle(),
     ]);
     if (p.data) setProfile(p.data);
     setHistory(h.data || []);
+    setTestMode(!!s.data?.test_mode);
     setLoading(false);
+  }
+
+  async function handleDevTopup() {
+    const rub = Number(amount);
+    if (!rub || rub < 100) { Alert.alert('Минимум 100 ₽'); return; }
+    setPaying(true);
+    const { data, error } = await supabase.rpc('dev_topup', { p_amount_kopecks: rub * 100 });
+    setPaying(false);
+    if (error) { Alert.alert('Не удалось', error.message); return; }
+    setTopupOpen(false);
+    Alert.alert('Тестовая оплата', `Зачислено ${rub.toLocaleString('ru')} ₽`);
+    load();
   }
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [session]);
@@ -132,6 +147,11 @@ export default function TutorWallet() {
                 {paying ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalPayText}>Оплатить</Text>}
               </TouchableOpacity>
             </View>
+            {testMode && (
+              <TouchableOpacity onPress={handleDevTopup} disabled={paying} style={styles.devLink}>
+                <Text style={styles.devLinkText}>тестовая оплата (dev)</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -181,4 +201,6 @@ const styles = StyleSheet.create({
   modalPay: { flex: 1.5, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 },
   modalPayDisabled: { opacity: 0.5 },
   modalPayText: { fontSize: 15, color: '#fff', fontWeight: '700' },
+  devLink: { alignSelf: 'center', paddingVertical: 8, marginTop: 4 },
+  devLinkText: { fontSize: 11, color: COLORS.textSecondary, textDecorationLine: 'underline', opacity: 0.6 },
 });
