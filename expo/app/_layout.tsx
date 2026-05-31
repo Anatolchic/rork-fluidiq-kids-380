@@ -48,6 +48,7 @@ export default function RootLayout() {
       if (!ready) {
         if (data.role === 'student') router.replace('/(student)');
         else if (data.role === 'tutor') router.replace('/(tutor)');
+        else if (data.role === 'admin') router.replace('/(admin)');
       }
     } else {
       router.replace('/(auth)/role-select');
@@ -63,6 +64,10 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(student)" />
         <Stack.Screen name="(tutor)" />
+        <Stack.Screen name="(admin)" />
+        <Stack.Screen name="admin-user/[id]" options={{ headerShown: true, title: 'Пользователь', headerBackTitle: 'Назад' }} />
+        <Stack.Screen name="review/[bookingId]" options={{ headerShown: true, title: 'Отзыв', headerBackTitle: 'Назад' }} />
+        <Stack.Screen name="support" options={{ headerShown: true, title: 'Поддержка', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="tutor-setup" options={{ headerShown: true, title: 'Профиль репетитора', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="tutor/[id]" options={{ headerShown: true, title: '', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="booking/new" options={{ headerShown: true, title: 'Запись на урок', headerBackTitle: 'Назад' }} />

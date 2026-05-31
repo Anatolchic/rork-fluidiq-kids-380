@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { StudentProfile } from '../../lib/types';
