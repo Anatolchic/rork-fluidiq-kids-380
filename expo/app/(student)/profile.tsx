@@ -5,7 +5,7 @@ import { COLORS } from '../../lib/constants';
 import { StudentProfile } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 
-export default function StudentProfile() {
+export default function StudentProfileScreen() {
   const { session, setSession, setProfile: setStoreProfile } = useAuthStore();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [name, setName] = useState('');
