@@ -1,0 +1,36 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Speech bubble: rounded rectangle with tail at bottom-left -->
+  <path d="
+    M 200 140
+    L 824 140
+    Q 904 140 904 220
+    L 904 720
+    Q 904 800 824 800
+    L 400 800
+    L 280 920
+    L 320 800
+    L 200 800
+    Q 120 800 120 720
+    L 120 220
+    Q 120 140 200 140
+    Z
+  " fill="#6C63FF"/>
+
+  <!-- Cyrillic Р -->
+  <path d="
+    M 410 290
+    L 600 290
+    Q 720 290 720 410
+    Q 720 530 600 530
+    L 510 530
+    L 510 700
+    L 410 700
+    Z
+    M 510 370
+    L 600 370
+    Q 640 370 640 410
+    Q 640 450 600 450
+    L 510 450
+    Z
+  " fill="#FFFFFF" fill-rule="evenodd"/>
+</svg>
