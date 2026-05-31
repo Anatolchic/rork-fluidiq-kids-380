@@ -1,9 +1,14 @@
 {
   "apps": [
     {
-      "name": "FluidIQ kids",
+      "name": "Репетиторы",
       "path": "expo",
-      "framework": "react-native"
+      "framework": "react-native",
+      "settings": {
+        "displayName": "Репетиторы",
+        "iosBundleId": "app.repetitory.repetitory",
+        "androidPackage": "app.repetitory.repetitory"
+      }
     }
   ]
 }

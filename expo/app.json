@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FluidIQ kids",
+    "name": "Репетиторы",
     "slug": "fluidiqkidsnew",
     "version": "1.3.0",
     "orientation": "portrait",
@@ -14,14 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.rork.fluidiq-kids-clone"
+      "bundleIdentifier": "app.repetitory.repetitory"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "app.rork.fluidiq_kids_new",
+      "package": "app.repetitory.repetitory",
       "permissions": [
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
