@@ -6,6 +6,8 @@ import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS, PAYMENT_METHODS } from '../../lib/constants';
 import { TutorProfile, LessonDuration, PaymentMethod } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import SettingsSection from '../../components/SettingsSection';
+import { ru } from '../../lib/errors';
 
 export default function TutorProfileScreen() {
   const { session, setSession, setProfile: setStoreProfile } = useAuthStore();
@@ -176,9 +178,7 @@ export default function TutorProfileScreen() {
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Сохранить</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>Выйти из аккаунта</Text>
-        </TouchableOpacity>
+        <SettingsSection />
       </ScrollView>
     </SafeAreaView>
   );

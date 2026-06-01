@@ -5,6 +5,8 @@ import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { StudentProfile } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import SettingsSection from '../../components/SettingsSection';
+import { ru } from '../../lib/errors';
 
 export default function StudentProfileScreen() {
   const { session, setSession, setProfile: setStoreProfile } = useAuthStore();
@@ -70,9 +72,7 @@ export default function StudentProfileScreen() {
           <Text style={styles.roleLabel}>Роль: Ученик 📚</Text>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Выйти из аккаунта</Text>
-        </TouchableOpacity>
+        <SettingsSection />
       </ScrollView>
     </SafeAreaView>
   );
