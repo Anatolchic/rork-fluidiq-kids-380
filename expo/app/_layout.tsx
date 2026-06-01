@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -6,8 +7,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import supabase from '../lib/supabase';
 import { registerForPushNotifications, savePushToken } from '../lib/notifications';
 import { useAuthStore } from '../stores/auth';
+import { COLORS } from '../lib/constants';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient();
 
@@ -16,17 +18,36 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        await loadProfile(session.user.id);
-        const token = await registerForPushNotifications();
-        if (token) savePushToken(session.user.id, token);
+    let cancelled = false;
+
+    async function init() {
+      try {
+        // Жёсткий таймаут на getSession — если Supabase недоступен,
+        // не блокируем приложение бесконечно
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null } }), 8000)
+        );
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        if (cancelled) return;
+        setSession(session);
+        if (session?.user) {
+          await loadProfile(session.user.id);
+          registerForPushNotifications().then(token => {
+            if (token && session.user) savePushToken(session.user.id, token);
+          }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[init] error', e);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setReady(true);
+          SplashScreen.hideAsync().catch(() => {});
+        }
       }
-      setLoading(false);
-      setReady(true);
-      SplashScreen.hideAsync();
-    });
+    }
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
@@ -38,24 +59,34 @@ export default function RootLayout() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId).single();
-    if (data?.role) {
-      setProfile({ role: data.role, userId });
-      if (!ready) {
-        if (data.role === 'student') router.replace('/(student)');
-        else if (data.role === 'tutor') router.replace('/(tutor)');
-        else if (data.role === 'admin') router.replace('/(admin)');
+    try {
+      const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
+      if (data?.role) {
+        setProfile({ role: data.role, userId });
+        if (!ready) {
+          if (data.role === 'student') router.replace('/(student)');
+          else if (data.role === 'tutor') router.replace('/(tutor)');
+          else if (data.role === 'admin') router.replace('/(admin)');
+        }
+      } else {
+        router.replace('/(auth)/role-select');
       }
-    } else {
-      router.replace('/(auth)/role-select');
+    } catch (e) {
+      console.warn('[loadProfile] error', e);
     }
   }
 
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
