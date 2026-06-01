@@ -10,3 +10,4 @@ dist
 ios/build
 android/build
 android/.gradle
+.rork
