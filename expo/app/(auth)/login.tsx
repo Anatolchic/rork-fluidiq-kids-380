@@ -91,7 +91,7 @@ export default function LoginScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.logoWrap}
           >
-            <GraduationCap size={42} color="#fff" strokeWidth={2} />
+            <GraduationCap size={70} color="#fff" strokeWidth={2} />
           </LinearGradient>
           <Text style={styles.title}>Репетиторы</Text>
           <Text style={styles.subtitle}>Войдите в свой аккаунт</Text>
@@ -191,14 +191,14 @@ const styles = StyleSheet.create({
   inner: { flex: 1, padding: 28, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
   header: { alignItems: 'center', marginBottom: 40 },
   logoWrap: {
-    width: 88, height: 88, borderRadius: 28,
+    width: 144, height: 144, borderRadius: 44,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 8,
   },
   title: { fontSize: 32, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
   subtitle: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
