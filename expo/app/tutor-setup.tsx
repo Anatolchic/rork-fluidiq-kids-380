@@ -1,15 +1,18 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, ScrollView, SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { X, Search } from 'lucide-react-native';
 import supabase from '../lib/supabase';
-import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS, PAYMENT_METHODS } from '../lib/constants';
+import { COLORS, SUBJECTS, SUBJECT_CATEGORIES, LEVELS, LESSON_DURATIONS, PAYMENT_METHODS, subjectCategoryOf } from '../lib/constants';
 import { useAuthStore } from '../stores/auth';
+import { useResponsive } from '../lib/responsive';
 
 const STEPS = 6;
 
 export default function TutorSetup() {
   const { session, setProfile } = useAuthStore();
+  useResponsive();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
 
@@ -24,6 +27,22 @@ export default function TutorSetup() {
   const [bio, setBio] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'phone' | 'bank' | 'phone_top' | 'other'>('card');
   const [paymentDetails, setPaymentDetails] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>(SUBJECT_CATEGORIES[0]?.key || 'school');
+  const [showAllSubjects, setShowAllSubjects] = useState(false);
+  const [modalSearch, setModalSearch] = useState('');
+
+  const currentCategorySubjects = useMemo(() => {
+    const cat = SUBJECT_CATEGORIES.find(c => c.key === selectedCategory);
+    return cat ? cat.subjects : [];
+  }, [selectedCategory]);
+
+  const modalGroups = useMemo(() => {
+    const s = modalSearch.trim().toLowerCase();
+    if (!s) return SUBJECT_CATEGORIES;
+    return SUBJECT_CATEGORIES
+      .map(c => ({ ...c, subjects: c.subjects.filter(x => x.toLowerCase().includes(s)) }))
+      .filter(c => c.subjects.length > 0);
+  }, [modalSearch]);
 
   async function pickPhoto() {
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -134,13 +153,74 @@ export default function TutorSetup() {
             <View style={styles.section}>
               <Text style={styles.title}>Какие предметы преподаёте?</Text>
               <Text style={styles.subtitle}>Выбрано: {subjects.length}</Text>
+
+              {/* Выбранные — отдельная плашка */}
+              {subjects.length > 0 && (
+                <View style={styles.selectedWrap}>
+                  {subjects.map(s => (
+                    <Pressable
+                      key={`sel-${s}`}
+                      onPress={() => toggleSubject(s)}
+                      style={({ pressed }) => [styles.selectedChip, pressed && { opacity: 0.7 }]}
+                    >
+                      <Text style={styles.selectedChipText}>{s}  ✕</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              {/* Селектор категории */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+              >
+                {SUBJECT_CATEGORIES.map(c => {
+                  const active = selectedCategory === c.key;
+                  return (
+                    <Pressable
+                      key={c.key}
+                      onPress={() => setSelectedCategory(c.key)}
+                      style={({ pressed }) => [
+                        styles.catBtn,
+                        active && styles.catBtnActive,
+                        pressed && { transform: [{ scale: 0.97 }] },
+                      ]}
+                    >
+                      <Text style={[styles.catBtnText, active && styles.catBtnTextActive]}>
+                        {c.emoji} {c.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Чипы предметов выбранной категории */}
               <View style={styles.chipsWrap}>
-                {SUBJECTS.map(s => (
-                  <TouchableOpacity key={s} style={[styles.chip, subjects.includes(s) && styles.chipActive]} onPress={() => toggleSubject(s)}>
-                    <Text style={[styles.chipText, subjects.includes(s) && styles.chipTextActive]}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
+                {currentCategorySubjects.map(s => {
+                  const active = subjects.includes(s);
+                  return (
+                    <Pressable
+                      key={s}
+                      onPress={() => toggleSubject(s)}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        active && styles.chipActive,
+                        pressed && { transform: [{ scale: 0.97 }] },
+                      ]}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{s}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
+
+              <Pressable
+                onPress={() => setShowAllSubjects(true)}
+                style={({ pressed }) => [styles.showAllBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.showAllBtnText}>Показать все категории →</Text>
+              </Pressable>
             </View>
           )}
 
@@ -239,18 +319,86 @@ export default function TutorSetup() {
           )}
         </View>
       </KeyboardAvoidingView>
+
+      {/* Модал «Все категории и предметы» */}
+      <Modal
+        visible={showAllSubjects}
+        animationType="slide"
+        onRequestClose={() => setShowAllSubjects(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Все предметы</Text>
+            <Pressable
+              hitSlop={10}
+              style={({ pressed }) => [styles.modalClose, pressed && { opacity: 0.6 }]}
+              onPress={() => { setShowAllSubjects(false); setModalSearch(''); }}
+            >
+              <X size={22} color={COLORS.text} />
+            </Pressable>
+          </View>
+          <View style={styles.modalSearchBox}>
+            <Search size={16} color={COLORS.textSecondary} />
+            <TextInput
+              style={styles.modalSearchInput}
+              placeholder="Поиск предмета..."
+              value={modalSearch}
+              onChangeText={setModalSearch}
+              placeholderTextColor={COLORS.textSecondary}
+            />
+            {modalSearch.length > 0 && (
+              <Pressable hitSlop={8} onPress={() => setModalSearch('')}>
+                <X size={16} color={COLORS.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.modalScroll}>
+            {modalGroups.map(cat => (
+              <View key={cat.key} style={styles.modalGroup}>
+                <Text style={styles.modalGroupTitle}>{cat.emoji}  {cat.label}</Text>
+                <View style={styles.chipsWrap}>
+                  {cat.subjects.map(s => {
+                    const active = subjects.includes(s);
+                    return (
+                      <Pressable
+                        key={s}
+                        onPress={() => toggleSubject(s)}
+                        style={({ pressed }) => [
+                          styles.chip,
+                          active && styles.chipActive,
+                          pressed && { transform: [{ scale: 0.97 }] },
+                        ]}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{s}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+          <View style={styles.modalFooter}>
+            <Pressable
+              onPress={() => { setShowAllSubjects(false); setModalSearch(''); }}
+              style={({ pressed }) => [styles.modalDoneBtn, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.modalDoneText}>Готово · выбрано {subjects.length}</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
+  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, maxWidth: 560, alignSelf: 'center' as any, width: '100%' },
   progressRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   progressDot: { flex: 1, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
   progressDotActive: { backgroundColor: COLORS.primary },
   stepLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
-  scroll: { padding: 20, paddingBottom: 100 },
+  scroll: { padding: 20, paddingBottom: 100, maxWidth: 560, alignSelf: 'center' as any, width: '100%' },
   section: { gap: 12 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 8, lineHeight: 20 },
@@ -267,6 +415,27 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
   chipTextActive: { color: '#fff' },
+  selectedWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, backgroundColor: COLORS.primaryLight, borderRadius: 12, marginBottom: 8 },
+  selectedChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: COLORS.primary },
+  selectedChipText: { fontSize: 12, color: COLORS.white, fontWeight: '700' },
+  catBtn: { height: 38, paddingHorizontal: 14, borderRadius: 19, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center' },
+  catBtnActive: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary },
+  catBtnText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '700' },
+  catBtnTextActive: { color: COLORS.primary },
+  showAllBtn: { alignSelf: 'center', marginTop: 10, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 14, backgroundColor: COLORS.primaryLight, borderWidth: 1, borderColor: COLORS.primary },
+  showAllBtnText: { fontSize: 13, color: COLORS.primary, fontWeight: '700' },
+  modalContainer: { flex: 1, backgroundColor: COLORS.background },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
+  modalClose: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  modalSearchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, height: 44, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
+  modalSearchInput: { flex: 1, fontSize: 15, color: COLORS.text },
+  modalScroll: { padding: 16, paddingBottom: 32 },
+  modalGroup: { marginBottom: 18 },
+  modalGroupTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text, marginBottom: 10 },
+  modalFooter: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 24 : 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background },
+  modalDoneBtn: { height: 52, backgroundColor: COLORS.primary, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  modalDoneText: { color: COLORS.white, fontSize: 15, fontWeight: '800' },
   priceRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, marginVertical: 8 },
   priceInput: { flex: 1, fontSize: 24, fontWeight: '700', color: COLORS.text, paddingVertical: 14 },
   priceCurrency: { fontSize: 16, color: COLORS.textSecondary, fontWeight: '600' },
@@ -282,7 +451,7 @@ const styles = StyleSheet.create({
   radioActive: { borderColor: COLORS.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },
   paymentLabel: { fontSize: 15, color: COLORS.text, flex: 1, fontWeight: '500' },
-  footer: { flexDirection: 'row', gap: 12, padding: 16, paddingBottom: Platform.OS === 'ios' ? 24 : 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background },
+  footer: { flexDirection: 'row', gap: 12, padding: 16, paddingBottom: Platform.OS === 'ios' ? 24 : 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background, maxWidth: 560, alignSelf: 'center' as any, width: '100%' },
   backBtn: { paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12, justifyContent: 'center' },
   backBtnText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '600' },
   nextBtn: { flex: 1, height: 52, backgroundColor: COLORS.primary, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },

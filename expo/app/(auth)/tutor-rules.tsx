@@ -55,7 +55,7 @@ export default function TutorRulesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 20 },
+  container: { flex: 1, backgroundColor: COLORS.background, padding: 20, maxWidth: 560, alignSelf: 'center' as any, width: '100%' },
   header: { marginBottom: 16 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary },

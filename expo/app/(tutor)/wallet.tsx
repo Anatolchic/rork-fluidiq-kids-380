@@ -1,21 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, RefreshControl, TextInput, Modal, Alert, Linking, Platform } from 'react-native';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator, RefreshControl, TextInput, Modal, Alert, Linking, Platform, Pressable, Animated } from 'react-native';
 import { format } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
-import { TrendingUp, TrendingDown, Plus, Star, Check } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Plus, Star, Check, Crown, Wallet, RotateCcw } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import supabase from '../../lib/supabase';
 import { initTopupPayment } from '../../lib/tbank';
 import { COLORS, MIN_BALANCE_KOPECKS, COMMISSION_KOPECKS } from '../../lib/constants';
 import { ru } from '../../lib/errors';
 import { Payment, TutorProfile } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import { useResponsive } from '../../lib/responsive';
 
 const DEFAULT_PRO_PRICE_KOPECKS = 99000;
-
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
 export default function TutorWallet() {
   const { session } = useAuthStore();
+  const { contentMaxWidth } = useResponsive();
   const [profile, setProfile] = useState<TutorProfile | null>(null);
   const [history, setHistory] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,85 +107,99 @@ export default function TutorWallet() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
+      <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
         <View style={styles.header}>
           <Text style={styles.title}>Кошелёк</Text>
         </View>
 
-        <View style={[styles.balanceCard, low && styles.balanceCardLow]}>
-          <Text style={styles.balanceLabel}>Баланс</Text>
+        {/* Balance — большой градиентный hero */}
+        <LinearGradient
+          colors={low ? [COLORS.warning, '#E65100'] : [COLORS.primary, '#3F3FBF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.balanceCard}
+        >
+          <View style={styles.balanceTopRow}>
+            <View style={styles.balanceIconWrap}>
+              <Wallet size={20} color="#fff" />
+            </View>
+            <Text style={styles.balanceLabel}>Баланс</Text>
+          </View>
           <Text style={styles.balanceValue}>{balanceRub} ₽</Text>
           <Text style={styles.balanceHint}>
-            Комиссия за урок: {(COMMISSION_KOPECKS / 100).toLocaleString('ru')} ₽ · Мин. баланс для старта урока: {(MIN_BALANCE_KOPECKS / 100).toLocaleString('ru')} ₽
+            Комиссия за урок: {(COMMISSION_KOPECKS / 100).toLocaleString('ru')} ₽ · Мин. баланс для старта: {(MIN_BALANCE_KOPECKS / 100).toLocaleString('ru')} ₽
           </Text>
-          <TouchableOpacity style={styles.topupBtn} onPress={() => setTopupOpen(true)}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.topupBtn,
+              { transform: [{ scale: pressed ? 0.97 : 1 }] },
+            ]}
+            onPress={() => setTopupOpen(true)}
+          >
             <Plus size={18} color="#fff" />
             <Text style={styles.topupText}>Пополнить</Text>
-          </TouchableOpacity>
-        </View>
+          </Pressable>
+          {/* Декоративная иконка фоном */}
+          <View style={styles.balanceBgIcon} pointerEvents="none">
+            <Wallet size={140} color="#ffffff10" strokeWidth={1.5} />
+          </View>
+        </LinearGradient>
 
-        <View style={styles.proCard}>
+        {/* PRO-карточка с золотым градиентом */}
+        <LinearGradient
+          colors={['#FFD700', '#FFA000']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.proCard}
+        >
           <View style={styles.proHeaderRow}>
             <View style={styles.proBadge}>
-              <Star size={14} color="#fff" fill="#fff" />
+              <Crown size={14} color="#FFA000" fill="#FFA000" />
               <Text style={styles.proBadgeText}>PRO</Text>
             </View>
             {isPro && proUntil && (
-              <Text style={styles.proStatus}>до {format(new Date(proUntil), 'd MMMM yyyy', { locale: ruLocale })}</Text>
+              <View style={styles.proUntilBadge}>
+                <Text style={styles.proStatus}>до {format(new Date(proUntil), 'd MMMM yyyy', { locale: ruLocale })}</Text>
+              </View>
             )}
           </View>
           <Text style={styles.proTitle}>{isPro ? 'PRO-подписка активна' : 'PRO-подписка'}</Text>
           <Text style={styles.proPrice}>{(proPrice / 100).toLocaleString('ru')} ₽ / месяц</Text>
           <View style={styles.perks}>
-            <View style={styles.perkRow}>
-              <Check size={14} color={COLORS.primary} />
-              <Text style={styles.perkText}>Приоритетное место в каталоге</Text>
-            </View>
-            <View style={styles.perkRow}>
-              <Check size={14} color={COLORS.primary} />
-              <Text style={styles.perkText}>Без комиссии за урок</Text>
-            </View>
-            <View style={styles.perkRow}>
-              <Check size={14} color={COLORS.primary} />
-              <Text style={styles.perkText}>Бейдж ⭐ PRO рядом с именем</Text>
-            </View>
+            <Perk text="Приоритетное место в каталоге" />
+            <Perk text="Без комиссии за урок" />
+            <Perk text="Бейдж PRO рядом с именем" />
           </View>
-          <TouchableOpacity
-            style={[styles.proBtn, buyingPro && styles.proBtnDisabled]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.proBtn,
+              buyingPro && styles.proBtnDisabled,
+              { transform: [{ scale: pressed ? 0.97 : 1 }] },
+            ]}
             disabled={buyingPro}
             onPress={handleBuyPro}
           >
-            {buyingPro ? <ActivityIndicator color="#fff" /> : (
+            {buyingPro ? <ActivityIndicator color="#FFA000" /> : (
               <Text style={styles.proBtnText}>{isPro ? 'Продлить на месяц' : 'Купить PRO на месяц'}</Text>
             )}
-          </TouchableOpacity>
+          </Pressable>
           <Text style={styles.proHint}>Списание с баланса. Убедись, что на счёте есть {(proPrice / 100).toLocaleString('ru')} ₽.</Text>
-        </View>
+          <View style={styles.proBgIcon} pointerEvents="none">
+            <Crown size={130} color="#ffffff22" strokeWidth={1.5} />
+          </View>
+        </LinearGradient>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>История</Text>
           {history.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyEmoji}>💸</Text>
+              <View style={styles.emptyIconWrap}>
+                <Wallet size={28} color={COLORS.primary} strokeWidth={1.5} />
+              </View>
               <Text style={styles.emptyText}>Операций пока нет</Text>
             </View>
           ) : (
-            history.map(p => (
-              <View key={p.id} style={styles.historyItem}>
-                <View style={[styles.icon, p.type === 'topup' ? styles.iconUp : styles.iconDown]}>
-                  {p.type === 'topup' ? <TrendingUp size={16} color={COLORS.success} /> : <TrendingDown size={16} color={COLORS.error} />}
-                </View>
-                <View style={styles.historyInfo}>
-                  <Text style={styles.historyTitle}>
-                    {p.type === 'topup' ? 'Пополнение' : p.type === 'commission' ? 'Комиссия за урок' : 'Возврат'}
-                  </Text>
-                  <Text style={styles.historyDate}>{format(new Date(p.created_at), 'd MMMM, HH:mm', { locale: ruLocale })}</Text>
-                </View>
-                <Text style={[styles.historyAmount, { color: p.type === 'topup' ? COLORS.success : COLORS.error }]}>
-                  {p.type === 'topup' ? '+' : '−'}{(p.amount / 100).toLocaleString('ru')} ₽
-                </Text>
-              </View>
-            ))
+            history.map((p, i) => <HistoryRow key={p.id} item={p} index={i} />)
           )}
         </View>
       </ScrollView>
@@ -199,23 +215,38 @@ export default function TutorWallet() {
             </View>
             <View style={styles.quickRow}>
               {QUICK_AMOUNTS.map(q => (
-                <TouchableOpacity key={q} style={styles.quickChip} onPress={() => setAmount(String(q))}>
+                <Pressable
+                  key={q}
+                  style={({ pressed }) => [styles.quickChip, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
+                  onPress={() => setAmount(String(q))}
+                >
                   <Text style={styles.quickText}>{q} ₽</Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setTopupOpen(false)}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancel, { transform: [{ scale: pressed ? 0.97 : 1 }] }]}
+                onPress={() => setTopupOpen(false)}
+              >
                 <Text style={styles.modalCancelText}>Отмена</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalPay, paying && styles.modalPayDisabled]} disabled={paying} onPress={handleTopup}>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalPay, paying && styles.modalPayDisabled, { transform: [{ scale: pressed ? 0.97 : 1 }] }]}
+                disabled={paying}
+                onPress={handleTopup}
+              >
                 {paying ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalPayText}>Оплатить</Text>}
-              </TouchableOpacity>
+              </Pressable>
             </View>
             {testMode && (
-              <TouchableOpacity onPress={handleDevTopup} disabled={paying} style={styles.devLink}>
+              <Pressable
+                onPress={handleDevTopup}
+                disabled={paying}
+                style={({ pressed }) => [styles.devLink, { opacity: pressed ? 0.4 : 0.7 }]}
+              >
                 <Text style={styles.devLinkText}>тестовая оплата (dev)</Text>
-              </TouchableOpacity>
+              </Pressable>
             )}
           </View>
         </View>
@@ -224,62 +255,161 @@ export default function TutorWallet() {
   );
 }
 
+function Perk({ text }: { text: string }) {
+  return (
+    <View style={styles.perkRow}>
+      <View style={styles.perkCheck}>
+        <Check size={11} color="#FFA000" strokeWidth={3} />
+      </View>
+      <Text style={styles.perkText}>{text}</Text>
+    </View>
+  );
+}
+
+function HistoryRow({ item, index }: { item: Payment; index: number }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const ty = useRef(new Animated.Value(8)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 280, delay: index * 50, useNativeDriver: true }),
+      Animated.timing(ty, { toValue: 0, duration: 280, delay: index * 50, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const isTopup = item.type === 'topup';
+  const isRefund = item.type === 'refund';
+  const Icon = isTopup ? TrendingUp : isRefund ? RotateCcw : TrendingDown;
+  const color = isTopup ? COLORS.success : isRefund ? COLORS.warning : COLORS.error;
+  const title = isTopup ? 'Пополнение' : item.type === 'commission' ? 'Комиссия за урок' : 'Возврат';
+
+  return (
+    <Animated.View style={[styles.historyItem, { opacity, transform: [{ translateY: ty }] }]}>
+      <View style={[styles.icon, { backgroundColor: color + '15' }]}>
+        <Icon size={16} color={color} />
+      </View>
+      <View style={styles.historyInfo}>
+        <Text style={styles.historyTitle}>{title}</Text>
+        <Text style={styles.historyDate}>{format(new Date(item.created_at), 'd MMMM, HH:mm', { locale: ruLocale })}</Text>
+      </View>
+      <Text style={[styles.historyAmount, { color }]}>
+        {isTopup ? '+' : '−'}{(item.amount / 100).toLocaleString('ru')} ₽
+      </Text>
+    </Animated.View>
+  );
+}
+
+const cardShadow = {
+  shadowColor: '#0006',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 14,
+  elevation: 3,
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 16, gap: 16, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
+  scroll: { padding: 16, gap: 18, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
   header: { paddingHorizontal: 4, paddingTop: 8 },
-  title: { fontSize: 26, fontWeight: '700', color: COLORS.text },
-  balanceCard: { backgroundColor: COLORS.primary, borderRadius: 18, padding: 20, gap: 6 },
-  balanceCardLow: { backgroundColor: COLORS.warning },
-  balanceLabel: { fontSize: 13, color: '#ffffffcc', fontWeight: '600' },
-  balanceValue: { fontSize: 38, fontWeight: '800', color: '#fff' },
-  balanceHint: { fontSize: 11, color: '#ffffffcc', lineHeight: 16, marginTop: 4 },
-  topupBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, height: 48, backgroundColor: '#ffffff25', borderRadius: 12, borderWidth: 1, borderColor: '#ffffff40' },
-  topupText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  section: { gap: 10 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, paddingHorizontal: 4 },
-  emptyCard: { backgroundColor: COLORS.white, borderRadius: 14, padding: 24, alignItems: 'center', gap: 6 },
-  emptyEmoji: { fontSize: 36 },
-  emptyText: { fontSize: 14, color: COLORS.textSecondary },
-  historyItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.white, borderRadius: 12, padding: 12 },
-  icon: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  iconUp: { backgroundColor: COLORS.success + '15' },
-  iconDown: { backgroundColor: COLORS.error + '15' },
-  historyInfo: { flex: 1, gap: 2 },
-  historyTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  historyDate: { fontSize: 12, color: COLORS.textSecondary },
-  historyAmount: { fontSize: 15, fontWeight: '700' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: COLORS.background, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 20, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 12 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  modalSub: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
-  amountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14 },
-  amountInput: { flex: 1, fontSize: 28, fontWeight: '700', color: COLORS.text, paddingVertical: 12 },
-  amountCurrency: { fontSize: 18, color: COLORS.textSecondary, fontWeight: '600' },
-  quickRow: { flexDirection: 'row', gap: 8 },
-  quickChip: { flex: 1, height: 42, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
-  quickText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  modalCancel: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
-  modalCancelText: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '600' },
-  modalPay: { flex: 1.5, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 },
-  modalPayDisabled: { opacity: 0.5 },
-  modalPayText: { fontSize: 15, color: '#fff', fontWeight: '700' },
-  devLink: { alignSelf: 'center', paddingVertical: 8, marginTop: 4 },
-  devLinkText: { fontSize: 11, color: COLORS.textSecondary, textDecorationLine: 'underline', opacity: 0.6 },
-  proCard: { backgroundColor: COLORS.white, borderRadius: 18, padding: 20, gap: 8, borderWidth: 1, borderColor: COLORS.border },
+  title: { fontSize: 30, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+
+  // Balance card
+  balanceCard: {
+    borderRadius: 22, padding: 22, gap: 6,
+    overflow: 'hidden', position: 'relative',
+    ...cardShadow,
+  },
+  balanceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  balanceIconWrap: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#ffffff22',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  balanceLabel: { fontSize: 14, color: '#ffffffdd', fontWeight: '700', letterSpacing: 0.3 },
+  balanceValue: { fontSize: 42, fontWeight: '800', color: '#fff', letterSpacing: -1, marginTop: 6 },
+  balanceHint: { fontSize: 12, color: '#ffffffcc', lineHeight: 17, marginTop: 6 },
+  topupBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 16, height: 50,
+    backgroundColor: '#ffffff25', borderRadius: 14,
+    borderWidth: 1, borderColor: '#ffffff40',
+  },
+  topupText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  balanceBgIcon: { position: 'absolute', right: -10, bottom: -20 },
+
+  // PRO card (golden)
+  proCard: {
+    borderRadius: 22, padding: 22, gap: 8,
+    overflow: 'hidden', position: 'relative',
+    ...cardShadow,
+  },
   proHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  proBadgeText: { color: '#fff', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
-  proStatus: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
-  proTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginTop: 4 },
-  proPrice: { fontSize: 22, fontWeight: '800', color: COLORS.primary },
-  perks: { gap: 6, marginTop: 8 },
-  perkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  perkText: { fontSize: 13, color: COLORS.text },
-  proBtn: { marginTop: 14, height: 48, borderRadius: 12, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  proBtnDisabled: { opacity: 0.5 },
-  proBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  proHint: { fontSize: 11, color: COLORS.textSecondary, marginTop: 6, lineHeight: 16 },
+  proBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12,
+  },
+  proBadgeText: { color: '#FFA000', fontWeight: '900', fontSize: 12, letterSpacing: 0.8 },
+  proUntilBadge: { backgroundColor: '#ffffff33', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  proStatus: { fontSize: 11, color: '#fff', fontWeight: '700' },
+  proTitle: { fontSize: 20, fontWeight: '800', color: '#fff', marginTop: 6, letterSpacing: -0.3 },
+  proPrice: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
+  perks: { gap: 8, marginTop: 10 },
+  perkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  perkCheck: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: '#fff',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  perkText: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  proBtn: {
+    marginTop: 16, height: 50, borderRadius: 14,
+    backgroundColor: '#fff',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  proBtnDisabled: { opacity: 0.6 },
+  proBtnText: { color: '#FFA000', fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
+  proHint: { fontSize: 11, color: '#ffffffcc', marginTop: 8, lineHeight: 16 },
+  proBgIcon: { position: 'absolute', right: -20, top: -20 },
+
+  section: { gap: 10 },
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, paddingHorizontal: 4, letterSpacing: -0.4 },
+  emptyCard: {
+    backgroundColor: COLORS.white, borderRadius: 18, padding: 28, alignItems: 'center', gap: 10,
+    ...cardShadow,
+  },
+  emptyIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' },
+
+  historyItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: COLORS.white, borderRadius: 16, padding: 14,
+    ...cardShadow,
+  },
+  icon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  historyInfo: { flex: 1, gap: 2 },
+  historyTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  historyDate: { fontSize: 12, color: COLORS.textSecondary },
+  historyAmount: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modal: {
+    backgroundColor: COLORS.background, padding: 22, paddingBottom: Platform.OS === 'ios' ? 36 : 22,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 14,
+  },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.4 },
+  modalSub: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
+  amountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 14, paddingHorizontal: 16 },
+  amountInput: { flex: 1, fontSize: 32, fontWeight: '800', color: COLORS.text, paddingVertical: 14, letterSpacing: -0.5 },
+  amountCurrency: { fontSize: 20, color: COLORS.textSecondary, fontWeight: '700' },
+  quickRow: { flexDirection: 'row', gap: 8 },
+  quickChip: { flex: 1, height: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12 },
+  quickText: { fontSize: 13, color: COLORS.text, fontWeight: '700' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  modalCancel: { flex: 1, height: 52, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 14 },
+  modalCancelText: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '700' },
+  modalPay: { flex: 1.5, height: 52, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 14, ...cardShadow },
+  modalPayDisabled: { opacity: 0.5 },
+  modalPayText: { fontSize: 15, color: '#fff', fontWeight: '800' },
+  devLink: { alignSelf: 'center', paddingVertical: 8, marginTop: 4 },
+  devLinkText: { fontSize: 11, color: COLORS.textSecondary, textDecorationLine: 'underline' },
 });

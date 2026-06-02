@@ -8,7 +8,7 @@ import { useResponsive } from '../../lib/responsive';
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const [resending, setResending] = useState(false);
-  const { contentMaxWidth } = useResponsive();
+  useResponsive();
 
   async function resend() {
     if (!email) return;
@@ -22,7 +22,7 @@ export default function VerifyEmail() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={[s.content, { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' }]}>
+      <View style={[s.content, { maxWidth: 480, alignSelf: 'center', width: '100%' }]}>
         <Text style={s.emoji}>📧</Text>
         <Text style={s.title}>Проверьте почту</Text>
         <Text style={s.sub}>Мы отправили письмо на <Text style={s.bold}>{email}</Text> со ссылкой подтверждения. Откройте письмо и кликните по ссылке.</Text>

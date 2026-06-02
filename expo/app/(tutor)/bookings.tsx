@@ -10,11 +10,13 @@ import { Booking } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import { ListSkeleton } from '../../lib/Skeleton';
 import { loadBookings, BookingWithParticipants } from '../../lib/bookings';
+import { useResponsive } from '../../lib/responsive';
 
 type Tab = 'pending' | 'upcoming' | 'past';
 
 export default function TutorBookings() {
   const { session } = useAuthStore();
+  const { contentMaxWidth } = useResponsive();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,7 +57,7 @@ export default function TutorBookings() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={styles.title}>Заявки</Text>
         <View style={styles.tabs}>
           {([
@@ -76,7 +78,7 @@ export default function TutorBookings() {
         <FlatList
           data={bookings}
           keyExtractor={i => i.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.card} onPress={() => router.push(`/booking/${item.id}`)}>

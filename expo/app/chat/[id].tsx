@@ -4,12 +4,14 @@ import { useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { format, isSameDay } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
-import { Send, Paperclip, Reply, X, Search, Pencil, Trash2, Smile } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Send, Paperclip, Reply, X, Search, Pencil, Trash2, Smile, User } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { Message } from '../../lib/types';
 import { ru } from '../../lib/errors';
 import { useAuthStore } from '../../stores/auth';
+import { useResponsive } from '../../lib/responsive';
 
 const REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢', '🙏'];
 
@@ -29,6 +31,7 @@ type Reaction = {
 export default function ChatScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
+  const { isDesktop, isLandscape } = useResponsive();
 
   const [messages, setMessages] = useState<MessageExt[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
@@ -313,60 +316,88 @@ export default function ChatScreen() {
       emojiAgg.set(r.emoji, cur);
     });
 
+    const bubbleInner = (
+      <>
+        {repliedTo && (
+          <View style={[styles.replyPreview, isOwn ? styles.replyPreviewOwn : styles.replyPreviewOther]}>
+            <View style={[styles.replyBar, { backgroundColor: isOwn ? '#ffffffcc' : COLORS.primary }]} />
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={[styles.replyAuthor, isOwn && { color: '#ffffffdd' }]}>
+                {repliedTo.sender_id === session?.user.id ? 'Вы' : 'Собеседник'}
+              </Text>
+              <Text numberOfLines={1} style={[styles.replyText, isOwn && { color: '#ffffffcc' }]}>
+                {repliedTo.deleted_at ? 'сообщение удалено' : (repliedTo.type === 'image' ? 'Фото' : (repliedTo.content || ''))}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {isDeleted ? (
+          <Text style={[styles.deletedText, isOwn && styles.deletedTextOwn]}>Сообщение удалено</Text>
+        ) : item.type === 'image' && item.file_url ? (
+          <Image source={{ uri: item.file_url }} style={styles.attachImg} resizeMode="cover" />
+        ) : (
+          <Text style={[styles.msgText, isOwn && styles.msgTextOwn]}>{item.content}</Text>
+        )}
+
+        <View style={styles.metaRow}>
+          {isEdited && <Text style={[styles.editedTag, isOwn && styles.editedTagOwn]}>изменено</Text>}
+          <Text style={[styles.time, isOwn && styles.timeOwn]}>{format(new Date(item.created_at), 'HH:mm')}</Text>
+          {isOwn && !isDeleted && <Text style={[styles.readMark, { color: isRead ? '#3ddc84' : '#ffffff80' }]}>{isRead ? '✓✓' : '✓'}</Text>}
+        </View>
+
+        {!isDeleted && emojiAgg.size > 0 && (
+          <View style={styles.reactionsRow}>
+            {Array.from(emojiAgg.entries()).map(([emoji, agg]) => (
+              <TouchableOpacity
+                key={emoji}
+                onPress={() => toggleReaction(item.id, emoji)}
+                style={[styles.reactionChip, agg.mine && styles.reactionChipMine]}
+              >
+                <Text style={styles.reactionEmoji}>{emoji}</Text>
+                <Text style={[styles.reactionCount, agg.mine && styles.reactionCountMine]}>{agg.count}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </>
+    );
+
     return (
       <View>
         {showDate && (
           <View style={styles.dateChip}><Text style={styles.dateText}>{format(new Date(item.created_at), 'd MMMM', { locale: ruLocale })}</Text></View>
         )}
         <View style={[styles.bubbleWrap, isOwn && styles.bubbleWrapOwn]}>
-          <Pressable
-            onLongPress={() => openActions(item)}
-            delayLongPress={250}
-            style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}
-          >
-            {repliedTo && (
-              <View style={[styles.replyPreview, isOwn ? styles.replyPreviewOwn : styles.replyPreviewOther]}>
-                <View style={[styles.replyBar, { backgroundColor: isOwn ? '#ffffffcc' : COLORS.primary }]} />
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={[styles.replyAuthor, isOwn && { color: '#ffffffdd' }]}>
-                    {repliedTo.sender_id === session?.user.id ? 'Вы' : 'Собеседник'}
-                  </Text>
-                  <Text numberOfLines={1} style={[styles.replyText, isOwn && { color: '#ffffffcc' }]}>
-                    {repliedTo.deleted_at ? 'сообщение удалено' : (repliedTo.type === 'image' ? '📷 Фото' : (repliedTo.content || ''))}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {isDeleted ? (
-              <Text style={[styles.deletedText, isOwn && styles.deletedTextOwn]}>Сообщение удалено</Text>
-            ) : item.type === 'image' && item.file_url ? (
-              <Image source={{ uri: item.file_url }} style={styles.attachImg} resizeMode="cover" />
-            ) : (
-              <Text style={[styles.msgText, isOwn && styles.msgTextOwn]}>{item.content}</Text>
-            )}
-
-            <View style={styles.metaRow}>
-              {isEdited && <Text style={[styles.editedTag, isOwn && styles.editedTagOwn]}>изменено</Text>}
-              <Text style={[styles.time, isOwn && styles.timeOwn]}>{format(new Date(item.created_at), 'HH:mm')}</Text>
-              {isOwn && !isDeleted && <Text style={[styles.readMark, { color: isRead ? '#3ddc84' : '#ffffff80' }]}>{isRead ? '✓✓' : '✓'}</Text>}
+          {!isOwn && (
+            <View style={styles.otherAvatar}>
+              <User size={14} color={COLORS.primary} />
             </View>
-
-            {!isDeleted && emojiAgg.size > 0 && (
-              <View style={styles.reactionsRow}>
-                {Array.from(emojiAgg.entries()).map(([emoji, agg]) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    onPress={() => toggleReaction(item.id, emoji)}
-                    style={[styles.reactionChip, agg.mine && styles.reactionChipMine]}
-                  >
-                    <Text style={styles.reactionEmoji}>{emoji}</Text>
-                    <Text style={[styles.reactionCount, agg.mine && styles.reactionCountMine]}>{agg.count}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </Pressable>
+          )}
+          {isOwn ? (
+            <Pressable
+              onLongPress={() => openActions(item)}
+              delayLongPress={250}
+              style={({ pressed }) => [{ maxWidth: '80%', opacity: pressed ? 0.92 : 1 }]}
+            >
+              <LinearGradient
+                colors={[COLORS.primary, '#8B7FFF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.bubble, styles.bubbleOwn]}
+              >
+                {bubbleInner}
+              </LinearGradient>
+            </Pressable>
+          ) : (
+            <Pressable
+              onLongPress={() => openActions(item)}
+              delayLongPress={250}
+              style={({ pressed }) => [styles.bubble, styles.bubbleOther, { opacity: pressed ? 0.92 : 1 }]}
+            >
+              {bubbleInner}
+            </Pressable>
+          )}
         </View>
       </View>
     );
@@ -403,13 +434,13 @@ export default function ChatScreen() {
         )}
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? (isLandscape ? 40 : 90) : 0} style={[{ flex: 1 }, isDesktop && { maxWidth: 880, alignSelf: 'center', width: '100%' }]}>
         <FlatList
           ref={listRef}
           data={visibleMessages}
           keyExtractor={i => i.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, isDesktop && { maxWidth: 880, alignSelf: 'center' as any, width: '100%' }]}
           onContentSizeChange={() => { if (!showSearch) listRef.current?.scrollToEnd({ animated: false }); }}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -533,12 +564,20 @@ const styles = StyleSheet.create({
     fontSize: 14, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border,
   },
 
-  bubbleWrap: { flexDirection: 'row', marginVertical: 2 },
+  bubbleWrap: { flexDirection: 'row', marginVertical: 3, alignItems: 'flex-end', gap: 6 },
   bubbleWrapOwn: { justifyContent: 'flex-end' },
-  bubble: { maxWidth: '80%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
-  bubbleOwn: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: COLORS.white, borderBottomLeftRadius: 4 },
-  msgText: { fontSize: 15, color: COLORS.text, lineHeight: 20 },
+  otherAvatar: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  bubble: {
+    maxWidth: '80%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, gap: 2,
+    shadowColor: '#0006', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1,
+  },
+  bubbleOwn: { borderBottomRightRadius: 6 },
+  bubbleOther: { backgroundColor: COLORS.white, borderBottomLeftRadius: 6 },
+  msgText: { fontSize: 15, color: COLORS.text, lineHeight: 21 },
   msgTextOwn: { color: '#fff' },
   deletedText: { fontSize: 14, color: COLORS.textSecondary, fontStyle: 'italic' },
   deletedTextOwn: { color: '#ffffffcc', fontStyle: 'italic' },

@@ -4,12 +4,14 @@ import { router } from 'expo-router';
 import { Eye, EyeOff, Star } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
+import { useResponsive } from '../../lib/responsive';
 
 export default function AdminTutors() {
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'published' | 'unpublished'>('all');
+  const { contentMaxWidth } = useResponsive();
 
   useEffect(() => { load(); }, [filter]);
 
@@ -32,7 +34,7 @@ export default function AdminTutors() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
+      <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Репетиторы</Text>
         <View style={s.filters}>
           {[
@@ -51,7 +53,7 @@ export default function AdminTutors() {
         <FlatList
           data={list}
           keyExtractor={i => i.id}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <View style={s.card}>

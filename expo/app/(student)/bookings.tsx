@@ -12,9 +12,11 @@ import { Booking } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import { ListSkeleton } from '../../lib/Skeleton';
 import { loadBookings } from '../../lib/bookings';
+import { useResponsive } from '../../lib/responsive';
 
 export default function StudentBookings() {
   const { session } = useAuthStore();
+  const { contentMaxWidth } = useResponsive();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +60,7 @@ export default function StudentBookings() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={styles.title}>Мои уроки</Text>
         <View style={styles.tabs}>
           {[{ key: 'upcoming', label: 'Предстоящие' }, { key: 'past', label: 'Прошедшие' }].map(t => (
@@ -80,7 +82,7 @@ export default function StudentBookings() {
           data={bookings}
           keyExtractor={item => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.card} onPress={() => router.push(`/booking/${item.id}`)}>
               <View style={styles.cardTop}>

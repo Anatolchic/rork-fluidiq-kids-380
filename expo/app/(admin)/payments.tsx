@@ -6,12 +6,14 @@ import { ru } from 'date-fns/locale';
 import { TrendingUp, TrendingDown } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
+import { useResponsive } from '../../lib/responsive';
 
 export default function AdminPayments() {
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
+  const { contentMaxWidth } = useResponsive();
 
   useEffect(() => { load(); }, [filter]);
 
@@ -37,7 +39,7 @@ export default function AdminPayments() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
+      <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Платежи и комиссии</Text>
         <Text style={s.sub}>Сумма комиссий: <Text style={{ fontWeight: '800', color: COLORS.text }}>{(sum / 100).toLocaleString('ru')} ₽</Text></Text>
         <View style={s.filters}>
@@ -58,7 +60,7 @@ export default function AdminPayments() {
         <FlatList
           data={list}
           keyExtractor={i => i.id}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <TouchableOpacity style={s.card} onPress={() => router.push(`/admin-user/${item.tutor_id}`)}>

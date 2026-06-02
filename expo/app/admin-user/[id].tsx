@@ -6,12 +6,14 @@ import { ru } from 'date-fns/locale';
 import { KeyRound, ShieldCheck, ShieldOff, Trash2, DollarSign, Eye, EyeOff, Ban } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
+import { useResponsive } from '../../lib/responsive';
 
 export default function AdminUserDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const { contentMaxWidth } = useResponsive();
 
   useEffect(() => { load(); }, [id]);
 
@@ -116,7 +118,7 @@ export default function AdminUserDetail() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll}>
+      <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <View style={s.head}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>{(t?.name || st?.name || data.email)?.charAt(0)?.toUpperCase()}</Text>

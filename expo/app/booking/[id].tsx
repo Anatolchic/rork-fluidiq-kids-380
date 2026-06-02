@@ -8,10 +8,12 @@ import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS, MIN_BALANCE_KOPECKS } from '../../lib/constants';
 import { Booking } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import { useResponsive } from '../../lib/responsive';
 
 export default function BookingDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session, profile } = useAuthStore();
+  const { contentMaxWidth } = useResponsive();
 
   const [booking, setBooking] = useState<any>(null);
   const [chatRoomId, setChatRoomId] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export default function BookingDetails() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
         <View style={styles.statusCard}>
           <View style={[styles.statusPill, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
             <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>{BOOKING_STATUS_LABELS[booking.status]}</Text>

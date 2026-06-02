@@ -7,6 +7,7 @@ import { COLORS } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
 import { getTurnIceServers, PEER_CONFIG_DEFAULTS, applyBitrateLimit } from '../../lib/webrtc';
 import type { Message } from '../../lib/types';
+import { useResponsive } from '../../lib/responsive';
 
 const RECONNECT_AFTER_MS = 3000;
 
@@ -21,6 +22,7 @@ const REACTIONS = ['❤️', '🔥', '👍', '😂', '🎉', '👏'];
 export default function CallScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
+  const { isLandscape } = useResponsive();
 
   const [status, setStatus] = useState<'preparing' | 'waiting' | 'connecting' | 'connected' | 'failed' | 'ended'>('preparing');
   const [micOn, setMicOn] = useState(true);
@@ -592,7 +594,7 @@ export default function CallScreen() {
 
       {/* Local PiP — только если доска выкл */}
       {!boardOn && (
-        <View style={styles.localWrap}>
+        <View style={[styles.localWrap, isLandscape ? { top: 16, left: 16, right: undefined, width: 160, height: 120 } : { top: 16, right: 16, left: undefined, width: 180, height: 240 }]}>
           {/* @ts-ignore */}
           <video ref={(r: any) => (localVideoRef.current = r)} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#222', transform: 'scaleX(-1)', filter: bgBlur ? 'blur(10px)' : 'none' }} />
           {bgBlur && (

@@ -1,22 +1,35 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, TextInput, Alert, Switch, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, SafeAreaView, ActivityIndicator, TextInput, Alert, Switch, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { format } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
-import { ShieldCheck, ChevronRight } from 'lucide-react-native';
+import { ShieldCheck, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
-import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS, PAYMENT_METHODS } from '../../lib/constants';
+import { COLORS, SUBJECTS, SUBJECT_CATEGORIES, LEVELS, LESSON_DURATIONS, PAYMENT_METHODS, subjectCategoryOf } from '../../lib/constants';
 import { TutorProfile, LessonDuration, PaymentMethod } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import AvatarPicker from '../../components/AvatarPicker';
 import SettingsSection from '../../components/SettingsSection';
 import { ru } from '../../lib/errors';
+import { useResponsive } from '../../lib/responsive';
 
 export default function TutorProfileScreen() {
   const { session, setSession, setProfile: setStoreProfile } = useAuthStore();
+  const { contentMaxWidth, isDesktop } = useResponsive();
   const [profile, setProfile] = useState<TutorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+  function toggleCategory(key: string) {
+    setExpandedCategories(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function toggleSubject(s: string) {
+    if (!profile) return;
+    const has = profile.subjects.includes(s);
+    patch({ subjects: (has ? profile.subjects.filter(x => x !== s) : [...profile.subjects, s]) as any });
+  }
 
   useEffect(() => { if (session) load(); }, [session]);
 
@@ -75,7 +88,7 @@ export default function TutorProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
         <Text style={styles.title}>Профиль</Text>
 
         <View style={styles.card}>
@@ -128,14 +141,68 @@ export default function TutorProfileScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Предметы</Text>
-          <View style={styles.chipsWrap}>
-            {SUBJECTS.map(s => (
-              <TouchableOpacity key={s} style={[styles.chip, profile.subjects.includes(s) && styles.chipActive]} onPress={() => patch({ subjects: profile.subjects.includes(s) ? profile.subjects.filter(x => x !== s) : [...profile.subjects, s] as any })}>
-                <Text style={[styles.chipText, profile.subjects.includes(s) && styles.chipTextActive]}>{s}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.subjectsHeader}>
+            <Text style={styles.cardTitle}>Предметы</Text>
+            <Text style={styles.subjectsCounter}>Выбрано: {profile.subjects.length}</Text>
           </View>
+
+          {/* Выбранные предметы — отдельная плашка для быстрого удаления */}
+          {profile.subjects.length > 0 && (
+            <View style={styles.selectedWrap}>
+              {profile.subjects.map(s => (
+                <Pressable
+                  key={`sel-${s}`}
+                  onPress={() => toggleSubject(s)}
+                  style={({ pressed }) => [styles.selectedChip, pressed && { opacity: 0.7 }]}
+                >
+                  <Text style={styles.selectedChipText}>{s}  ✕</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* Категории — раскрываемые группы */}
+          {SUBJECT_CATEGORIES.map(cat => {
+            const isOpen = !!expandedCategories[cat.key];
+            const countInCat = profile.subjects.filter(s => subjectCategoryOf(s) === cat.key).length;
+            return (
+              <View key={cat.key} style={styles.catGroup}>
+                <Pressable
+                  onPress={() => toggleCategory(cat.key)}
+                  style={({ pressed }) => [styles.catHeader, pressed && { opacity: 0.7 }]}
+                >
+                  <Text style={styles.catHeaderText}>
+                    {cat.emoji}  {cat.label}
+                    {countInCat > 0 && <Text style={styles.catCount}>  · {countInCat}</Text>}
+                  </Text>
+                  {isOpen
+                    ? <ChevronUp size={18} color={COLORS.textSecondary} />
+                    : <ChevronDown size={18} color={COLORS.textSecondary} />
+                  }
+                </Pressable>
+                {isOpen && (
+                  <View style={styles.chipsWrap}>
+                    {cat.subjects.map(s => {
+                      const active = profile.subjects.includes(s);
+                      return (
+                        <Pressable
+                          key={s}
+                          onPress={() => toggleSubject(s)}
+                          style={({ pressed }) => [
+                            styles.chip,
+                            active && styles.chipActive,
+                            pressed && { transform: [{ scale: 0.97 }] },
+                          ]}
+                        >
+                          <Text style={[styles.chipText, active && styles.chipTextActive]}>{s}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.card}>
@@ -214,11 +281,20 @@ const styles = StyleSheet.create({
   helper: { fontSize: 11, color: COLORS.textSecondary, alignSelf: 'flex-end' },
   input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 12, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.background },
   textarea: { minHeight: 90, textAlignVertical: 'top' },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 12, color: COLORS.text },
   chipTextActive: { color: '#fff', fontWeight: '600' },
+  subjectsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  subjectsCounter: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  selectedWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingVertical: 6, paddingHorizontal: 4, backgroundColor: COLORS.primaryLight, borderRadius: 10, marginVertical: 4 },
+  selectedChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: COLORS.primary },
+  selectedChipText: { fontSize: 12, color: COLORS.white, fontWeight: '700' },
+  catGroup: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 8, marginTop: 4 },
+  catHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  catHeaderText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  catCount: { color: COLORS.primary, fontWeight: '700' },
   durRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   durBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, minWidth: 70, alignItems: 'center' },
   durBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },

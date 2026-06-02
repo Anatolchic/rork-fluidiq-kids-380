@@ -77,7 +77,7 @@ export default function RoleSelectScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 24, justifyContent: 'center' },
+  inner: { flex: 1, padding: 24, justifyContent: 'center', maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
   header: { alignItems: 'center', marginBottom: 40 },
   title: { fontSize: 32, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
   subtitle: { fontSize: 16, color: COLORS.textSecondary },

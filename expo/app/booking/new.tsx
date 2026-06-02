@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, SafeAreaView, ActivityIndicator, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { format, addDays, isSameDay, startOfDay, addMinutes, isBefore } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
+import { LinearGradient } from 'expo-linear-gradient';
+import { User, Gift, Repeat as RepeatIcon, Check, BookOpen, GraduationCap, Clock, CalendarDays } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS } from '../../lib/constants';
 import { TutorProfile, TutorAvailability, Booking, LessonDuration, Subject, Level } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import { ru } from '../../lib/errors';
+import { useResponsive } from '../../lib/responsive';
 
 const DAYS_AHEAD = 14;
 const SLOT_INTERVAL_MIN = 30;
@@ -19,6 +22,7 @@ const INTRO_DURATION = 30; // 30-минутный слот = 25 мин урок 
 export default function BookingNew() {
   const { tutor: tutorId, date: presetDate } = useLocalSearchParams<{ tutor: string; date?: string }>();
   const { session } = useAuthStore();
+  const { isDesktop, contentMaxWidth } = useResponsive();
 
   const [tutor, setTutor] = useState<TutorProfile | null>(null);
   const [availability, setAvailability] = useState<TutorAvailability[]>([]);
@@ -231,104 +235,169 @@ export default function BookingNew() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Запись к репетитору</Text>
-          <Text style={styles.tutorName}>👤 {tutor.name}</Text>
-
-          <Text style={styles.label}>Предмет</Text>
-          <View style={styles.chipsWrap}>
-            {subjects.map(s => (
-              <TouchableOpacity key={s} style={[styles.chip, subject === s && styles.chipActive]} onPress={() => setSubject(s)}>
-                <Text style={[styles.chipText, subject === s && styles.chipTextActive]}>{s}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.tutorRow}>
+            <User size={14} color={COLORS.textSecondary} />
+            <Text style={styles.tutorName}>{tutor.name}</Text>
           </View>
 
-          <Text style={styles.label}>Уровень</Text>
-          <View style={styles.chipsWrap}>
-            {levels.map(l => (
-              <TouchableOpacity key={l} style={[styles.chip, level === l && styles.chipActive]} onPress={() => setLevel(l)}>
-                <Text style={[styles.chipText, level === l && styles.chipTextActive]}>{l}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={styles.stepIcon}><BookOpen size={16} color={COLORS.primary} /></View>
+              <Text style={styles.stepTitle}>Предмет</Text>
+            </View>
+            <View style={styles.chipsWrap}>
+              {subjects.map(sj => (
+                <Pressable
+                  key={sj}
+                  style={({ pressed }) => [styles.chip, subject === sj && styles.chipActive, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
+                  onPress={() => setSubject(sj)}
+                >
+                  <Text style={[styles.chipText, subject === sj && styles.chipTextActive]}>{sj}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={styles.stepIcon}><GraduationCap size={16} color={COLORS.primary} /></View>
+              <Text style={styles.stepTitle}>Уровень</Text>
+            </View>
+            <View style={styles.chipsWrap}>
+              {levels.map(l => (
+                <Pressable
+                  key={l}
+                  style={({ pressed }) => [styles.chip, level === l && styles.chipActive, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
+                  onPress={() => setLevel(l)}
+                >
+                  <Text style={[styles.chipText, level === l && styles.chipTextActive]}>{l}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
 
           {previousBookings === 0 && (
-            <TouchableOpacity style={[introStyles.card, isIntro && introStyles.cardActive]} onPress={toggleIntro} activeOpacity={0.8}>
-              <View style={[introStyles.check, isIntro && introStyles.checkOn]}>
-                {isIntro && <Text style={introStyles.checkMark}>✓</Text>}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={introStyles.title}>🎁 Ознакомительный урок · 25 мин</Text>
-                <Text style={introStyles.sub}>Только для первого занятия с этим репетитором — со скидкой 50% от обычной цены. Слот занимает 30 минут (25 мин урок + 5 мин знакомство).</Text>
-              </View>
-            </TouchableOpacity>
+            <Pressable
+              style={({ pressed }) => [
+                introStyles.cardWrap,
+                isIntro && introStyles.cardActiveWrap,
+                { transform: [{ scale: pressed ? 0.985 : 1 }] },
+              ]}
+              onPress={toggleIntro}
+            >
+              <LinearGradient
+                colors={isIntro ? [COLORS.primary, '#8B7FFF'] : ['#FFF7E6', '#FFE9C2']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={introStyles.card}
+              >
+                <View style={[introStyles.check, isIntro && introStyles.checkOn]}>
+                  {isIntro && <Check size={13} color={COLORS.primary} strokeWidth={3} />}
+                </View>
+                <View style={[introStyles.iconWrap, isIntro && introStyles.iconWrapActive]}>
+                  <Gift size={20} color={isIntro ? '#fff' : COLORS.warning} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[introStyles.title, isIntro && introStyles.titleActive]}>Ознакомительный урок · 25 мин</Text>
+                  <Text style={[introStyles.sub, isIntro && introStyles.subActive]}>Только для первого занятия — скидка 50%. Слот 30 минут (25 мин урок + 5 мин знакомство).</Text>
+                </View>
+              </LinearGradient>
+            </Pressable>
           )}
 
-          <Text style={styles.label}>Длительность</Text>
-          <View style={styles.chipsWrap}>
-            {allowedDurations.map(d => (
-              <TouchableOpacity key={d.value} style={[styles.durBtn, duration === d.value && styles.durBtnActive]} onPress={() => { setDuration(d.value as LessonDuration); setSelectedTime(null); }}>
-                <Text style={[styles.durText, duration === d.value && styles.durTextActive]}>{d.label}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={styles.stepIcon}><Clock size={16} color={COLORS.primary} /></View>
+              <Text style={styles.stepTitle}>Длительность</Text>
+            </View>
+            <View style={styles.chipsWrap}>
+              {allowedDurations.map(d => (
+                <Pressable
+                  key={d.value}
+                  style={({ pressed }) => [styles.durBtn, duration === d.value && styles.durBtnActive, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
+                  onPress={() => { setDuration(d.value as LessonDuration); setSelectedTime(null); }}
+                >
+                  <Text style={[styles.durText, duration === d.value && styles.durTextActive]}>{d.label}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
 
-          <Text style={styles.label}>Дата</Text>
-          {availableDates.length === 0 ? (
-            <Text style={styles.warn}>Репетитор не задал расписание</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
-              {availableDates.map(d => {
-                const active = selectedDate && isSameDay(d, selectedDate);
-                return (
-                  <TouchableOpacity key={d.toISOString()} style={[styles.dateBtn, active && styles.dateBtnActive]} onPress={() => { setSelectedDate(d); setSelectedTime(null); }}>
-                    <Text style={[styles.dateDow, active && styles.dateTextActive]}>{format(d, 'EEE', { locale: ruLocale })}</Text>
-                    <Text style={[styles.dateDay, active && styles.dateTextActive]}>{format(d, 'd')}</Text>
-                    <Text style={[styles.dateMonth, active && styles.dateTextActive]}>{format(d, 'LLL', { locale: ruLocale })}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={styles.stepIcon}><CalendarDays size={16} color={COLORS.primary} /></View>
+              <Text style={styles.stepTitle}>Дата</Text>
+            </View>
+            {availableDates.length === 0 ? (
+              <Text style={styles.warn}>Репетитор не задал расписание</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
+                {availableDates.map(d => {
+                  const active = selectedDate && isSameDay(d, selectedDate);
+                  return (
+                    <Pressable
+                      key={d.toISOString()}
+                      style={({ pressed }) => [styles.dateBtn, active && styles.dateBtnActive, { transform: [{ scale: pressed ? 0.95 : 1 }] }]}
+                      onPress={() => { setSelectedDate(d); setSelectedTime(null); }}
+                    >
+                      <Text style={[styles.dateDow, active && styles.dateTextActive]}>{format(d, 'EEE', { locale: ruLocale })}</Text>
+                      <Text style={[styles.dateDay, active && styles.dateTextActive]}>{format(d, 'd')}</Text>
+                      <Text style={[styles.dateMonth, active && styles.dateTextActive]}>{format(d, 'LLL', { locale: ruLocale })}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
 
           {selectedDate && (
-            <>
-              <Text style={styles.label}>Время</Text>
+            <View style={styles.stepCard}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepIcon}><Clock size={16} color={COLORS.primary} /></View>
+                <Text style={styles.stepTitle}>Время</Text>
+              </View>
               {slotsForDate.length === 0 ? (
                 <Text style={styles.warn}>В этот день нет свободных слотов</Text>
               ) : (
                 <View style={styles.timeWrap}>
                   {slotsForDate.map(s => (
-                    <TouchableOpacity
+                    <Pressable
                       key={s.iso}
-                      style={[styles.timeBtn, selectedTime === s.iso && styles.timeBtnActive, s.isBusy && styles.timeBtnBusy]}
+                      style={({ pressed }) => [styles.timeBtn, selectedTime === s.iso && styles.timeBtnActive, s.isBusy && styles.timeBtnBusy, { transform: [{ scale: pressed && !s.isBusy ? 0.95 : 1 }] }]}
                       disabled={s.isBusy}
                       onPress={() => setSelectedTime(s.iso)}
                     >
                       <Text style={[styles.timeText, selectedTime === s.iso && styles.timeTextActive, s.isBusy && styles.timeTextBusy]}>{s.label}</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                   ))}
                 </View>
               )}
-            </>
+            </View>
           )}
 
           {selectedDate && selectedTime && !isIntro && (
             <>
-              <TouchableOpacity
-                style={[recurringStyles.card, isRecurring && recurringStyles.cardActive]}
+              <Pressable
+                style={({ pressed }) => [
+                  recurringStyles.card,
+                  isRecurring && recurringStyles.cardActive,
+                  { transform: [{ scale: pressed ? 0.985 : 1 }] },
+                ]}
                 onPress={() => setIsRecurring(v => !v)}
-                activeOpacity={0.8}
               >
                 <View style={[recurringStyles.check, isRecurring && recurringStyles.checkOn]}>
-                  {isRecurring && <Text style={recurringStyles.checkMark}>✓</Text>}
+                  {isRecurring && <Check size={13} color="#fff" strokeWidth={3} />}
+                </View>
+                <View style={[recurringStyles.iconWrap, isRecurring && recurringStyles.iconWrapActive]}>
+                  <RepeatIcon size={20} color={isRecurring ? COLORS.primary : COLORS.textSecondary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={recurringStyles.title}>🔁 Сделать регулярной</Text>
-                  <Text style={recurringStyles.sub}>Будет создано несколько бронирований подряд: в тот же день недели и время, шаг 7 дней.</Text>
+                  <Text style={recurringStyles.title}>Сделать регулярной</Text>
+                  <Text style={recurringStyles.sub}>Несколько бронирований подряд: тот же день недели и время, шаг 7 дней.</Text>
                 </View>
-              </TouchableOpacity>
+              </Pressable>
               {isRecurring && (
                 <>
                   <Text style={styles.label}>На сколько недель</Text>
@@ -405,74 +474,132 @@ export default function BookingNew() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={[styles.bookBtn, (!canBook() || saving) && styles.bookBtnDisabled]} disabled={!canBook() || saving} onPress={book}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.bookBtnText}>{tutor.auto_confirm ? 'Забронировать' : 'Отправить заявку'}</Text>}
-          </TouchableOpacity>
+          <View style={styles.footerPriceBlock}>
+            <Text style={styles.footerPriceLabel}>Итого</Text>
+            <Text style={styles.footerPriceValue}>
+              {isRecurring && !isIntro
+                ? `${(priceForChoice * recurringWeeks).toLocaleString('ru')} ₽`
+                : `${priceForChoice.toLocaleString('ru')} ₽`}
+            </Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.bookBtnWrap,
+              (!canBook() || saving) && styles.bookBtnDisabled,
+              { transform: [{ scale: pressed && canBook() ? 0.97 : 1 }] },
+            ]}
+            disabled={!canBook() || saving}
+            onPress={book}
+          >
+            <LinearGradient
+              colors={[COLORS.primary, '#8B7FFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.bookBtn}
+            >
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.bookBtnText}>{tutor.auto_confirm ? 'Забронировать' : 'Отправить заявку'}</Text>}
+            </LinearGradient>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+const cardShadow = {
+  shadowColor: '#0006',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 14,
+  elevation: 3,
+};
+
 const introStyles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginTop: 12, backgroundColor: COLORS.warning + '15', borderRadius: 12, borderWidth: 1, borderColor: COLORS.warning + '40' },
-  cardActive: { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary },
-  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
-  checkOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkMark: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  title: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  sub: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17, marginTop: 2 },
+  cardWrap: { marginTop: 4, borderRadius: 18, ...cardShadow },
+  cardActiveWrap: {},
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18 },
+  cardActive: {},
+  check: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: COLORS.warning + '60', justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff80' },
+  checkOn: { backgroundColor: '#fff', borderColor: '#fff' },
+  iconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#ffffff80', justifyContent: 'center', alignItems: 'center' },
+  iconWrapActive: { backgroundColor: '#ffffff35' },
+  title: { fontSize: 14, fontWeight: '800', color: COLORS.text, letterSpacing: -0.2 },
+  titleActive: { color: '#fff' },
+  sub: { fontSize: 12, color: COLORS.text + 'cc', lineHeight: 17, marginTop: 3 },
+  subActive: { color: '#ffffffdd' },
 });
 
 const recurringStyles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginTop: 12, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
-  cardActive: { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary },
-  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginTop: 4, backgroundColor: COLORS.white, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, ...cardShadow },
+  cardActive: { backgroundColor: COLORS.primary + '0A', borderColor: COLORS.primary + '60' },
+  check: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   checkOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkMark: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  title: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  sub: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17, marginTop: 2 },
+  iconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
+  iconWrapActive: { backgroundColor: COLORS.primaryLight },
+  title: { fontSize: 14, fontWeight: '800', color: COLORS.text, letterSpacing: -0.2 },
+  sub: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17, marginTop: 3 },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   empty: { fontSize: 16, color: COLORS.textSecondary },
-  scroll: { padding: 20, gap: 10, paddingBottom: 24, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  tutorName: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 8 },
-  label: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginTop: 12 },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border },
+  scroll: { padding: 16, gap: 14, paddingBottom: 24, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
+  title: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  tutorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  tutorName: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' },
+  stepCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 16,
+    gap: 12,
+    ...cardShadow,
+  },
+  stepHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
+  stepTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.2 },
+  label: { fontSize: 13, fontWeight: '800', color: COLORS.text, marginTop: 6 },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 14, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { fontSize: 13, color: COLORS.text },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
-  durBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 84, alignItems: 'center' },
+  chipText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  chipTextActive: { color: '#fff', fontWeight: '700' },
+  durBtn: { paddingHorizontal: 16, paddingVertical: 11, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, minWidth: 84, alignItems: 'center' },
   durBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  durText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  durText: { fontSize: 13, color: COLORS.text, fontWeight: '700' },
   durTextActive: { color: '#fff' },
-  dateScroll: { gap: 8, paddingVertical: 4 },
-  dateBtn: { width: 64, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border },
+  dateScroll: { gap: 10, paddingVertical: 4 },
+  dateBtn: { width: 68, paddingVertical: 12, alignItems: 'center', borderRadius: 14, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
   dateBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  dateDow: { fontSize: 11, color: COLORS.textSecondary, textTransform: 'uppercase' },
-  dateDay: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginVertical: 2 },
-  dateMonth: { fontSize: 11, color: COLORS.textSecondary },
+  dateDow: { fontSize: 11, color: COLORS.textSecondary, textTransform: 'uppercase', fontWeight: '700', letterSpacing: 0.3 },
+  dateDay: { fontSize: 24, fontWeight: '800', color: COLORS.text, marginVertical: 2, letterSpacing: -0.5 },
+  dateMonth: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' },
   dateTextActive: { color: '#fff' },
-  timeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  timeBtn: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 70, alignItems: 'center' },
+  timeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  timeBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, minWidth: 74, alignItems: 'center' },
   timeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  timeBtnBusy: { backgroundColor: COLORS.background, opacity: 0.4 },
-  timeText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  timeBtnBusy: { backgroundColor: COLORS.background, opacity: 0.35 },
+  timeText: { fontSize: 13, color: COLORS.text, fontWeight: '700' },
   timeTextActive: { color: '#fff' },
   timeTextBusy: { textDecorationLine: 'line-through' },
-  warn: { fontSize: 13, color: COLORS.warning, padding: 12, backgroundColor: COLORS.warning + '15', borderRadius: 10 },
-  input: { backgroundColor: COLORS.white, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border, fontSize: 14, color: COLORS.text },
-  summary: { backgroundColor: COLORS.primaryLight, borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
+  warn: { fontSize: 13, color: COLORS.warning, padding: 12, backgroundColor: COLORS.warning + '15', borderRadius: 12 },
+  input: { backgroundColor: COLORS.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, fontSize: 14, color: COLORS.text },
+  summary: { backgroundColor: COLORS.primaryLight, borderRadius: 16, padding: 16, marginTop: 6, gap: 5 },
   summaryLine: { fontSize: 14, color: COLORS.text },
-  summaryBold: { fontWeight: '700' },
+  summaryBold: { fontWeight: '800' },
   summaryHint: { fontSize: 11, color: COLORS.textSecondary, marginTop: 6, lineHeight: 16 },
-  footer: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 24 : 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background },
-  bookBtn: { height: 56, backgroundColor: COLORS.primary, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  footer: {
+    padding: 16, paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    borderTopWidth: 1, borderTopColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    shadowColor: '#0006', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 8,
+  },
+  footerPriceBlock: { justifyContent: 'center' },
+  footerPriceLabel: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '700', letterSpacing: 0.3 },
+  footerPriceValue: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  bookBtnWrap: { flex: 1, borderRadius: 16, ...cardShadow },
+  bookBtn: { height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   bookBtnDisabled: { opacity: 0.4 },
-  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
 });

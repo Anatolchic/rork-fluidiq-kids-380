@@ -7,6 +7,7 @@ import { X, Send } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
+import { useResponsive } from '../../lib/responsive';
 
 export default function AdminTickets() {
   const { session } = useAuthStore();
@@ -17,6 +18,7 @@ export default function AdminTickets() {
   const [open, setOpen] = useState<any>(null);
   const [replies, setReplies] = useState<any[]>([]);
   const [reply, setReply] = useState('');
+  const { contentMaxWidth } = useResponsive();
 
   useEffect(() => { load(); }, [filter]);
 
@@ -55,7 +57,7 @@ export default function AdminTickets() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
+      <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Обращения</Text>
         <View style={s.filters}>
           {[
@@ -75,7 +77,7 @@ export default function AdminTickets() {
         <FlatList
           data={list}
           keyExtractor={i => i.id}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <TouchableOpacity style={s.card} onPress={() => openTicket(item)}>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator, TextInput, TouchableOpacity, Switch, Alert } from 'react-native';
 import supabase from '../../lib/supabase';
-import { COLORS } from '../../lib/constants';
+import { COLORS, SUBJECT_CATEGORIES } from '../../lib/constants';
 import { ru } from '../../lib/errors';
 import { useResponsive } from '../../lib/responsive';
 
@@ -121,6 +121,23 @@ export default function AdminSettings() {
           </View>
         </View>
 
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Категории предметов</Text>
+          <Text style={s.help}>
+            Read-only. Категории зашиты в код (lib/constants.ts → SUBJECT_CATEGORIES).
+            Всего категорий: {SUBJECT_CATEGORIES.length}, предметов: {SUBJECT_CATEGORIES.reduce((acc, c) => acc + c.subjects.length, 0)}.
+          </Text>
+          {SUBJECT_CATEGORIES.map(c => (
+            <View key={c.key} style={s.catRow}>
+              <View style={s.catRowHeader}>
+                <Text style={s.catRowTitle}>{c.emoji}  {c.label}</Text>
+                <Text style={s.catRowCount}>{c.subjects.length} шт.</Text>
+              </View>
+              <Text style={s.catRowSubjects} numberOfLines={3}>{c.subjects.join(' · ')}</Text>
+            </View>
+          ))}
+        </View>
+
         <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.5 }]} disabled={saving} onPress={save}>
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveText}>Сохранить</Text>}
         </TouchableOpacity>
@@ -145,4 +162,9 @@ const s = StyleSheet.create({
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   priceLabel: { fontSize: 13, color: COLORS.textSecondary },
   priceValue: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  catRow: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 8, marginTop: 4 },
+  catRowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  catRowTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  catRowCount: { fontSize: 11, color: COLORS.primary, fontWeight: '700' },
+  catRowSubjects: { fontSize: 11, color: COLORS.textSecondary, marginTop: 4, lineHeight: 16 },
 });

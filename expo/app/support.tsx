@@ -7,9 +7,11 @@ import { Plus, MessageCircle, X } from 'lucide-react-native';
 import supabase from '../lib/supabase';
 import { COLORS } from '../lib/constants';
 import { useAuthStore } from '../stores/auth';
+import { useResponsive } from '../lib/responsive';
 
 export default function SupportScreen() {
   const { session } = useAuthStore();
+  const { contentMaxWidth } = useResponsive();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,7 +63,7 @@ export default function SupportScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
+      <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Поддержка</Text>
         <Text style={s.sub}>Напишите если что-то не работает или есть вопрос</Text>
       </View>
@@ -72,7 +74,7 @@ export default function SupportScreen() {
         <FlatList
           data={tickets}
           keyExtractor={i => i.id}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <View style={s.empty}>

@@ -9,7 +9,7 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { contentMaxWidth } = useResponsive();
+  useResponsive();
 
   async function submit() {
     if (!email.trim()) { Alert.alert('Введите email'); return; }
@@ -26,7 +26,7 @@ export default function ForgotPassword() {
   return (
     <SafeAreaView style={s.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={[s.content, { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' }]}>
+        <View style={[s.content, { maxWidth: 480, alignSelf: 'center', width: '100%' }]}>
           <Text style={s.title}>Восстановление пароля</Text>
           {!sent ? (
             <>

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Alert,
+  View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView,
+  Platform, ActivityIndicator, Alert, Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Fingerprint } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Fingerprint, GraduationCap, Mail, Lock } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useResponsive } from '../../lib/responsive';
@@ -21,7 +21,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
-  const { contentMaxWidth } = useResponsive();
+  useResponsive();
 
   useEffect(() => {
     (async () => {
@@ -42,7 +42,6 @@ export default function LoginScreen() {
     setLoading(false);
     if (error) { Alert.alert('Ошибка входа', ru(error)); return; }
 
-    // После успешного логина — спросить про биометрию (один раз на пользователя)
     if (Platform.OS !== 'web' && data.session) {
       const supported = await isBiometricSupported();
       const userId = data.user?.id ?? null;
@@ -84,75 +83,149 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.inner, { maxWidth: contentMaxWidth as any }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.inner, { maxWidth: 480 }]}>
         <View style={styles.header}>
-          <Text style={styles.logo}>📚</Text>
+          <LinearGradient
+            colors={[COLORS.primary, '#8B7FFF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.logoWrap}
+          >
+            <GraduationCap size={42} color="#fff" strokeWidth={2} />
+          </LinearGradient>
           <Text style={styles.title}>Репетиторы</Text>
           <Text style={styles.subtitle}>Войдите в свой аккаунт</Text>
         </View>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            placeholderTextColor={COLORS.textSecondary}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Пароль"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor={COLORS.textSecondary}
-          />
+          <View style={styles.inputWrap}>
+            <Mail size={18} color={COLORS.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              placeholderTextColor={COLORS.textSecondary}
+            />
+          </View>
 
-          <TouchableOpacity style={styles.btnPrimary} onPress={handleLogin} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Войти</Text>}
-          </TouchableOpacity>
+          <View style={styles.inputWrap}>
+            <Lock size={18} color={COLORS.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Пароль"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor={COLORS.textSecondary}
+            />
+          </View>
 
-          <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.btnPrimaryWrap,
+              { transform: [{ scale: pressed ? 0.98 : 1 }] },
+            ]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <LinearGradient
+              colors={[COLORS.primary, '#8B7FFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.btnPrimary}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Войти</Text>}
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/(auth)/forgot-password')}
+            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+          >
             <Text style={styles.forgotLink}>Забыли пароль?</Text>
-          </TouchableOpacity>
+          </Pressable>
 
           {bioEnabled && Platform.OS !== 'web' && (
-            <TouchableOpacity style={styles.btnBio} onPress={handleBioLogin} disabled={loading}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.btnBio,
+                { transform: [{ scale: pressed ? 0.98 : 1 }] },
+              ]}
+              onPress={handleBioLogin}
+              disabled={loading}
+            >
               <Fingerprint size={20} color={COLORS.primary} />
               <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
         </View>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Нет аккаунта? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+          <Pressable
+            onPress={() => router.push('/(auth)/register')}
+            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+          >
             <Text style={styles.footerLink}>Зарегистрироваться</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+const cardShadow = {
+  shadowColor: '#0006',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 14,
+  elevation: 3,
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 24, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
+  inner: { flex: 1, padding: 28, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
   header: { alignItems: 'center', marginBottom: 40 },
-  logo: { fontSize: 56, marginBottom: 8 },
-  title: { fontSize: 32, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
-  subtitle: { fontSize: 16, color: COLORS.textSecondary },
-  form: { gap: 12 },
-  input: { height: 52, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 16, fontSize: 16, backgroundColor: COLORS.white, color: COLORS.text },
-  btnPrimary: { height: 52, backgroundColor: COLORS.primary, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  forgotLink: { color: COLORS.primary, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 6 },
-  btnBio: { height: 52, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 4 },
-  btnBioText: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
+  logoWrap: {
+    width: 88, height: 88, borderRadius: 28,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
+  subtitle: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
+  form: { gap: 14 },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    height: 56,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    ...cardShadow,
+  },
+  input: { flex: 1, fontSize: 16, color: COLORS.text },
+  btnPrimaryWrap: { marginTop: 6, borderRadius: 16, ...cardShadow },
+  btnPrimary: { height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  forgotLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
+  btnBio: {
+    height: 56, backgroundColor: COLORS.white, borderRadius: 16,
+    borderWidth: 1.5, borderColor: COLORS.primary + '50',
+    justifyContent: 'center', alignItems: 'center',
+    flexDirection: 'row', gap: 8, marginTop: 4,
+  },
+  btnBioText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
   footerText: { color: COLORS.textSecondary, fontSize: 14 },
-  footerLink: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
+  footerLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
 });

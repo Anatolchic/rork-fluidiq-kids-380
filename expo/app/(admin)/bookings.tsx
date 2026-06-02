@@ -7,12 +7,14 @@ import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS } from '../../lib/constants';
 import { loadBookings, BookingWithParticipants } from '../../lib/bookings';
 import { usePagination } from '../../lib/pagination';
+import { useResponsive } from '../../lib/responsive';
 
 const PAGE_SIZE = 20;
 
 export default function AdminBookings() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
+  const { contentMaxWidth } = useResponsive();
 
   // fetcher пересоздаётся при смене filter — usePagination это ловит через refresh()
   // ниже (вызывается из useEffect(filter)).
@@ -52,7 +54,7 @@ export default function AdminBookings() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
+      <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Все бронирования</Text>
         <View style={s.filters}>
           {[
@@ -74,7 +76,7 @@ export default function AdminBookings() {
         <FlatList
           data={items}
           keyExtractor={i => i.id}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <TouchableOpacity style={s.card} onPress={() => router.push(`/booking/${item.id}`)}>

@@ -5,6 +5,7 @@ import { Users, GraduationCap, Calendar, DollarSign, MessageSquare, TrendingUp, 
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { LineChart, BarChart } from '../../lib/Chart';
+import { useResponsive } from '../../lib/responsive';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -12,6 +13,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { width } = useWindowDimensions();
+  const { contentMaxWidth } = useResponsive();
   const cols = width > 900 ? 4 : width > 600 ? 3 : 2;
 
   useEffect(() => { load(); }, []);
@@ -48,7 +50,7 @@ export default function AdminDashboard() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+      <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <View style={s.header}>
           <Text style={s.title}>Админ-панель</Text>
           <Text style={s.sub}>Репетиторы · мониторинг</Text>

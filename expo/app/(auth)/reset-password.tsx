@@ -10,7 +10,7 @@ export default function ResetPassword() {
   const [pwd2, setPwd2] = useState('');
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
-  const { contentMaxWidth } = useResponsive();
+  useResponsive();
 
   useEffect(() => {
     // Supabase Auth ставит сессию из ?access_token= в hash. Дождёмся session.
@@ -37,7 +37,7 @@ export default function ResetPassword() {
   return (
     <SafeAreaView style={s.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={[s.content, { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' }]}>
+        <View style={[s.content, { maxWidth: 480, alignSelf: 'center', width: '100%' }]}>
           <Text style={s.title}>Новый пароль</Text>
           {!ready ? (
             <View style={{ alignItems: 'center', gap: 12 }}>

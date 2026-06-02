@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, Modal, Switch, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, Modal, Switch, Platform, TextInput, Pressable } from 'react-native';
 import { addDays, addMonths, format, parseISO, startOfMonth } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
-import { Plus, Trash2, Repeat, CalendarDays, Settings } from 'lucide-react-native';
+import { Plus, Trash2, Repeat, CalendarDays, Settings, Clock, Calendar as CalendarIcon } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, DAY_NAMES } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
 import CalendarMonth from '../../components/CalendarMonth';
 import { ru } from '../../lib/errors';
+import { useResponsive } from '../../lib/responsive';
 
 type AvailRow = {
   id: string;
@@ -27,6 +28,7 @@ const HOURS_30 = Array.from({ length: 48 }, (_, i) => {
 
 export default function TutorSchedule() {
   const { session } = useAuthStore();
+  const { contentMaxWidth } = useResponsive();
   const [avails, setAvails] = useState<AvailRow[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,9 +162,21 @@ export default function TutorSchedule() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll}>
-        <Text style={s.title}>Расписание</Text>
-        <Text style={s.sub}>Зелёным подсвечены даты со слотами, жёлтым — с бронированиями. Тапни дату, чтобы добавить или убрать слот.</Text>
+      <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth }]}>
+        <View style={s.headerWrap}>
+          <Text style={s.title}>Расписание</Text>
+          <View style={s.legend}>
+            <View style={s.legendItem}>
+              <View style={[s.legendDot, { backgroundColor: COLORS.success }]} />
+              <Text style={s.legendText}>Слоты</Text>
+            </View>
+            <View style={s.legendItem}>
+              <View style={[s.legendDot, { backgroundColor: COLORS.warning }]} />
+              <Text style={s.legendText}>Брони</Text>
+            </View>
+          </View>
+        </View>
+        <Text style={s.sub}>Тапни дату, чтобы добавить или убрать слот.</Text>
 
         <View style={s.calendarCard}>
           <CalendarMonth
@@ -177,11 +191,19 @@ export default function TutorSchedule() {
         {selectedDate && (
           <View style={s.dateBlock}>
             <View style={s.dateHeader}>
-              <Text style={s.dateTitle}>{format(selectedDate, 'd MMMM, EEEE', { locale: ruLocale })}</Text>
-              <TouchableOpacity style={s.addBtn} onPress={() => setAddOpen(true)}>
+              <View style={s.dateTitleWrap}>
+                <View style={s.dateIconWrap}>
+                  <CalendarIcon size={16} color={COLORS.primary} />
+                </View>
+                <Text style={s.dateTitle}>{format(selectedDate, 'd MMMM, EEEE', { locale: ruLocale })}</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [s.addBtn, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
+                onPress={() => setAddOpen(true)}
+              >
                 <Plus size={16} color="#fff" />
                 <Text style={s.addBtnText}>Добавить</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             {dateSlots.length === 0 && dateBookings.length === 0 ? (
@@ -192,6 +214,9 @@ export default function TutorSchedule() {
               <>
                 {dateSlots.map(slot => (
                   <View key={slot.id} style={s.slotRow}>
+                    <View style={s.slotIconWrap}>
+                      <Clock size={16} color={COLORS.success} />
+                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.slotTime}>
                         {slot.start_time} — {slot.end_time}
@@ -207,19 +232,28 @@ export default function TutorSchedule() {
                         )}
                       </View>
                     </View>
-                    <TouchableOpacity style={s.editBtn} onPress={() => openEditSlot(slot)}>
+                    <Pressable
+                      style={({ pressed }) => [s.editBtn, { transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+                      onPress={() => openEditSlot(slot)}
+                    >
                       <Settings size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.delBtn} onPress={() => removeSlot(slot.id)}>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [s.delBtn, { transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+                      onPress={() => removeSlot(slot.id)}
+                    >
                       <Trash2 size={14} color={COLORS.error} />
-                    </TouchableOpacity>
+                    </Pressable>
                   </View>
                 ))}
                 {dateBookings.map(b => (
-                  <View key={b.id} style={[s.slotRow, { backgroundColor: COLORS.warning + '15', borderColor: COLORS.warning + '40' }]}>
+                  <View key={b.id} style={[s.slotRow, { backgroundColor: COLORS.warning + '15', borderColor: COLORS.warning + '50' }]}>
+                    <View style={[s.slotIconWrap, { backgroundColor: COLORS.warning + '20' }]}>
+                      <CalendarIcon size={16} color={COLORS.warning} />
+                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.slotTime}>{format(parseISO(b.start_time), 'HH:mm')} — {format(parseISO(b.end_time), 'HH:mm')}</Text>
-                      <Text style={[s.slotMeta, { color: COLORS.warning }]}>Бронь · {b.status === 'pending' ? 'ожидает' : b.status === 'confirmed' ? 'подтверждена' : b.status}</Text>
+                      <Text style={[s.bookingMetaText, { color: COLORS.warning }]}>Бронь · {b.status === 'pending' ? 'ожидает' : b.status === 'confirmed' ? 'подтверждена' : b.status}</Text>
                     </View>
                   </View>
                 ))}
@@ -310,43 +344,60 @@ export default function TutorSchedule() {
   );
 }
 
+const cardShadow = {
+  shadowColor: '#0006',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 14,
+  elevation: 3,
+};
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  scroll: { padding: 16, gap: 12, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
-  title: { fontSize: 26, fontWeight: '700', color: COLORS.text },
-  sub: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
-  calendarCard: { backgroundColor: COLORS.white, borderRadius: 14, padding: 10 },
-  dateBlock: { backgroundColor: COLORS.white, borderRadius: 14, padding: 14, gap: 10 },
-  dateHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  dateTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.primary },
-  addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  empty: { paddingVertical: 16, alignItems: 'center' },
+  scroll: { padding: 16, gap: 14, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
+  headerWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  title: { fontSize: 30, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  legend: { flexDirection: 'row', gap: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  sub: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
+  calendarCard: { backgroundColor: COLORS.white, borderRadius: 18, padding: 14, ...cardShadow },
+  dateBlock: { backgroundColor: COLORS.white, borderRadius: 18, padding: 16, gap: 12, ...cardShadow },
+  dateHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  dateTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  dateIconWrap: { width: 32, height: 32, borderRadius: 10, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
+  dateTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text, textTransform: 'capitalize', flex: 1, letterSpacing: -0.3 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: COLORS.primary, ...cardShadow },
+  addBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  empty: { paddingVertical: 24, alignItems: 'center' },
   emptyText: { fontSize: 13, color: COLORS.textSecondary },
-  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: COLORS.success + '10', borderRadius: 10, borderWidth: 1, borderColor: COLORS.success + '30' },
-  slotTime: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  slotPrice: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
-  slotMeta: { fontSize: 11, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: COLORS.success + '10', borderRadius: 14, borderWidth: 1, borderColor: COLORS.success + '40' },
+  slotIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.success + '20', justifyContent: 'center', alignItems: 'center' },
+  slotTime: { fontSize: 14, fontWeight: '800', color: COLORS.text, letterSpacing: -0.2 },
+  slotPrice: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  slotMeta: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  bookingMetaText: { fontSize: 12, marginTop: 3, fontWeight: '600' },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tagText: { fontSize: 11, fontWeight: '600' },
-  editBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary + '15' },
-  delBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.error + '15' },
+  tagText: { fontSize: 11, fontWeight: '700' },
+  editBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary + '15' },
+  delBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.error + '15' },
   modalRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: COLORS.background, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 20, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 10 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  modalLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginTop: 2 },
-  hint: { fontSize: 11, color: COLORS.textSecondary },
+  modal: { backgroundColor: COLORS.background, padding: 22, paddingBottom: Platform.OS === 'ios' ? 36 : 22, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 12 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
+  modalLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginTop: 4, letterSpacing: 0.3 },
+  hint: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 16 },
   hourScroll: { gap: 6, paddingVertical: 4 },
-  hourChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 60, alignItems: 'center' },
-  priceInput: { backgroundColor: COLORS.white, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border, fontSize: 14, color: COLORS.text, marginTop: 4 },
+  hourChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 64, alignItems: 'center' },
+  priceInput: { backgroundColor: COLORS.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, fontSize: 15, color: COLORS.text, marginTop: 4 },
   hourChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  hourText: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
+  hourText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
   hourTextActive: { color: '#fff' },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  modalCancel: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
-  modalCancelText: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '600' },
-  modalSave: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 },
-  modalSaveText: { fontSize: 15, color: '#fff', fontWeight: '700' },
+  modalCancel: { flex: 1, height: 52, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border },
+  modalCancelText: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '700' },
+  modalSave: { flex: 1, height: 52, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 14, ...cardShadow },
+  modalSaveText: { fontSize: 15, color: '#fff', fontWeight: '800' },
 });

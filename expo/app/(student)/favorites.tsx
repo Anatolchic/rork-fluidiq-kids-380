@@ -5,9 +5,11 @@ import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { TutorProfile } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import { useResponsive } from '../../lib/responsive';
 
 export default function Favorites() {
   const { session } = useAuthStore();
+  const { contentMaxWidth, gridCols } = useResponsive();
   const [tutors, setTutors] = useState<TutorProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,17 +29,20 @@ export default function Favorites() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}><Text style={styles.title}>Избранное</Text></View>
+      <View style={[styles.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}><Text style={styles.title}>Избранное</Text></View>
       {loading ? (
         <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>
       ) : (
         <FlatList
           data={tutors}
+          key={`fav-${gridCols}`}
           keyExtractor={item => item.id}
+          numColumns={gridCols}
+          columnWrapperStyle={gridCols > 1 ? { gap: 12 } : undefined}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => router.push(`/tutor/${item.user_id}`)}>
+            <TouchableOpacity style={[styles.card, gridCols > 1 && { flex: 1 }]} onPress={() => router.push(`/tutor/${item.user_id}`)}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
               </View>

@@ -8,9 +8,11 @@ import { useAuthStore } from '../../stores/auth';
 import SettingsSection from '../../components/SettingsSection';
 import AvatarPicker from '../../components/AvatarPicker';
 import { ru } from '../../lib/errors';
+import { useResponsive } from '../../lib/responsive';
 
 export default function StudentProfileScreen() {
   const { session, setSession, setProfile: setStoreProfile } = useAuthStore();
+  const { isDesktop, contentMaxWidth } = useResponsive();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -46,41 +48,47 @@ export default function StudentProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.avatarSection}>
-          <AvatarPicker
-            userId={session!.user.id}
-            photoUrl={profile?.photo_url}
-            name={name}
-            onUpdate={async (url) => {
-              if (profile) setProfile({ ...profile, photo_url: url });
-              await supabase.from('student_profiles').upsert({ user_id: session!.user.id, photo_url: url, name: name || 'Ученик' }, { onConflict: 'user_id' });
-            }}
-            size={80}
-          />
-          <Text style={[styles.email, { marginTop: 10 }]}>{session?.user.email}</Text>
-        </View>
+      <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
+        <View style={isDesktop ? styles.twoCols : undefined}>
+          <View style={isDesktop ? styles.colLeft : undefined}>
+            <View style={styles.avatarSection}>
+              <AvatarPicker
+                userId={session!.user.id}
+                photoUrl={profile?.photo_url}
+                name={name}
+                onUpdate={async (url) => {
+                  if (profile) setProfile({ ...profile, photo_url: url });
+                  await supabase.from('student_profiles').upsert({ user_id: session!.user.id, photo_url: url, name: name || 'Ученик' }, { onConflict: 'user_id' });
+                }}
+                size={80}
+              />
+              <Text style={[styles.email, { marginTop: 10 }]}>{session?.user.email}</Text>
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ваше имя</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Введите имя"
-            placeholderTextColor={COLORS.textSecondary}
-          />
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Сохранить</Text>}
-          </TouchableOpacity>
-        </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Аккаунт</Text>
+              <Text style={styles.roleLabel}>Роль: Ученик 📚</Text>
+            </View>
+          </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Аккаунт</Text>
-          <Text style={styles.roleLabel}>Роль: Ученик 📚</Text>
-        </View>
+          <View style={isDesktop ? styles.colRight : undefined}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ваше имя</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Введите имя"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Сохранить</Text>}
+              </TouchableOpacity>
+            </View>
 
-        <SettingsSection />
+            <SettingsSection />
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -89,7 +97,10 @@ export default function StudentProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 20, gap: 20, maxWidth: 600, alignSelf: 'center' as any, width: '100%' },
+  scroll: { padding: 20, gap: 20, alignSelf: 'center' as any, width: '100%' },
+  twoCols: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  colLeft: { flex: 1, gap: 20 },
+  colRight: { flex: 2, gap: 20 },
   avatarSection: { alignItems: 'center', paddingVertical: 20 },
   avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   avatarText: { fontSize: 32, fontWeight: '700', color: COLORS.primary },

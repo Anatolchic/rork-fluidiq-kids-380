@@ -7,6 +7,7 @@ import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { TutorProfile } from '../../lib/types';
 import CalendarMonth from '../../components/CalendarMonth';
+import { useResponsive } from '../../lib/responsive';
 
 export default function PublicTutorProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -17,6 +18,7 @@ export default function PublicTutorProfile() {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isPro, setIsPro] = useState(false);
+  const { contentMaxWidth } = useResponsive();
 
   useEffect(() => { if (id) load(); }, [id, month]);
 
@@ -73,7 +75,7 @@ export default function PublicTutorProfile() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll}>
+      <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth }]}>
         <View style={s.avatarBlock}>
           {tutor.photo_url ? (
             <Image source={{ uri: tutor.photo_url }} style={s.avatarImg} />

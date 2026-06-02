@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Search } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
+import { useResponsive } from '../../lib/responsive';
 
 export default function AdminUsers() {
   const params = useLocalSearchParams<{ role?: string }>();
@@ -12,6 +13,7 @@ export default function AdminUsers() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<string | null>(params.role || null);
+  const { contentMaxWidth } = useResponsive();
 
   useEffect(() => { load(); }, [role]);
 
@@ -26,7 +28,7 @@ export default function AdminUsers() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
+      <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Пользователи</Text>
         <View style={s.searchRow}>
           <View style={s.searchBox}>
@@ -59,7 +61,7 @@ export default function AdminUsers() {
         <FlatList
           data={users}
           keyExtractor={i => i.user_id}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <TouchableOpacity style={s.card} onPress={() => router.push(`/admin-user/${item.user_id}`)}>

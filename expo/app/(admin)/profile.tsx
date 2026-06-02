@@ -7,9 +7,11 @@ import { UserPlus, KeyRound, ShieldOff } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
+import { useResponsive } from '../../lib/responsive';
 
 export default function AdminProfile() {
   const { session, setSession, setProfile } = useAuthStore();
+  const { contentMaxWidth } = useResponsive();
   const [admins, setAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -84,7 +86,7 @@ export default function AdminProfile() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll}>
+      <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Профиль администратора</Text>
 
         <View style={s.card}>

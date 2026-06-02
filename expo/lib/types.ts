@@ -1,5 +1,8 @@
 export type UserRole = 'student' | 'tutor' | 'admin';
-export type Subject = 'Математика'|'Физика'|'Химия'|'Биология'|'История'|'География'|'Литература'|'Русский язык'|'Английский язык'|'Немецкий язык'|'Французский язык'|'Информатика'|'Обществознание'|'Экономика'|'Право'|'Музыка'|'Рисование'|'Шахматы'|'Другое';
+// Раньше Subject был union literal с фиксированным списком, но теперь предметы расширены до ~200
+// и завязаны на SUBJECT_CATEGORIES в lib/constants.ts. Оставляем string — валидация рантайма
+// идёт через SUBJECTS / SUBJECT_CATEGORIES.
+export type Subject = string;
 export type Level = 'Дошкольник'|'Школьник (1-4 класс)'|'Школьник (5-9 класс)'|'Подготовка к ОГЭ'|'Подготовка к ЕГЭ'|'Студент'|'Взрослый';
 export type LessonDuration = 30 | 45 | 60 | 90;
 export type BookingStatus = 'pending'|'confirmed'|'active'|'completed'|'cancelled';

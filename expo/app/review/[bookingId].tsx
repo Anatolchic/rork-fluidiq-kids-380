@@ -99,7 +99,7 @@ export default function ReviewScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 24, gap: 16, alignItems: 'center' },
+  scroll: { padding: 24, gap: 16, alignItems: 'center', maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text },
   sub: { fontSize: 14, color: COLORS.textSecondary },
   starsRow: { flexDirection: 'row', gap: 6, marginVertical: 24 },
