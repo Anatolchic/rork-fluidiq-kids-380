@@ -6,8 +6,8 @@
       "framework": "react-native",
       "settings": {
         "displayName": "Репетиторы",
-        "iosBundleId": "app.repetitory.repetitory",
-        "androidPackage": "app.repetitory.repetitory"
+        "iosBundleId": "ru.repetitory.app",
+        "androidPackage": "ru.repetitory.app"
       }
     }
   ]

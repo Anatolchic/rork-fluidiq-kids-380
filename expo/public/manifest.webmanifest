@@ -1,0 +1,24 @@
+{
+  "name": "Репетиторы",
+  "short_name": "Репетиторы",
+  "description": "Найдите репетитора онлайн. Уроки в видеосвязи прямо в приложении.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F0F23",
+  "theme_color": "#6C63FF",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/assets/images/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

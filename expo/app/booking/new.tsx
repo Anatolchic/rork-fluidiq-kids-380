@@ -33,6 +33,9 @@ export default function BookingNew() {
   const [subject, setSubject] = useState<Subject | null>(null);
   const [level, setLevel] = useState<Level | null>(null);
   const [topic, setTopic] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoApplied, setPromoApplied] = useState<{ percent: number; discount_kopecks: number } | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
 
   useEffect(() => { if (tutorId && session) load(); }, [tutorId, session]);
 
@@ -127,9 +130,10 @@ export default function BookingNew() {
       const start = new Date(selectedTime!);
       const end = addMinutes(start, duration);
       // Ознакомительный — 50% от цены 30-минутного слота (примерно полцены за пол-урока)
-      const price = isIntro && previousBookings === 0
+      const basePrice = isIntro && previousBookings === 0
         ? Math.round((tutor.price_per_hour * 25) / 60 / 2)
         : Math.round((tutor.price_per_hour * duration) / 60);
+      const price = promoApplied ? Math.max(basePrice - promoApplied.discount_kopecks, 0) : basePrice;
       const status = tutor.auto_confirm ? 'confirmed' : 'pending';
 
       const { data: bookingData, error: bookingError } = await supabase
@@ -150,6 +154,14 @@ export default function BookingNew() {
         .select('id')
         .single();
       if (bookingError) throw bookingError;
+
+      if (promoApplied) {
+        await supabase.from('promo_code_uses').insert({
+          code: promoCode, user_id: session.user.id, booking_id: bookingData.id,
+          discount_kopecks: promoApplied.discount_kopecks,
+        });
+        await supabase.rpc('increment_promo_use' as any, { p_code: promoCode }).catch(() => {});
+      }
 
       await supabase.from('chat_rooms').insert({
         booking_id: bookingData.id,
@@ -268,6 +280,39 @@ export default function BookingNew() {
             placeholderTextColor={COLORS.textSecondary}
             maxLength={200}
           />
+
+          <Text style={styles.label}>Промокод (опционально)</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={[styles.input, { flex: 1, textTransform: 'uppercase' }]}
+              value={promoCode}
+              onChangeText={t => { setPromoCode(t.toUpperCase()); setPromoApplied(null); }}
+              placeholder="HELLO50"
+              placeholderTextColor={COLORS.textSecondary}
+              autoCapitalize="characters"
+              editable={!promoApplied}
+            />
+            <TouchableOpacity
+              style={[styles.durBtn, { paddingHorizontal: 16 }, (!promoCode || promoChecking) && { opacity: 0.5 }]}
+              disabled={!promoCode || promoChecking}
+              onPress={async () => {
+                if (promoApplied) { setPromoApplied(null); setPromoCode(''); return; }
+                if (!tutor) return;
+                setPromoChecking(true);
+                const base = Math.round((tutor.price_per_hour * duration) / 60);
+                const { data, error } = await supabase.rpc('apply_promo_code', { p_code: promoCode, p_base_kopecks: base, p_target: 'lesson_price' });
+                setPromoChecking(false);
+                if (error) { Alert.alert('Ошибка', error.message); return; }
+                if (!data?.ok) { Alert.alert('Промокод не применён', data?.error || 'Не подошёл'); return; }
+                setPromoApplied({ percent: data.percent, discount_kopecks: data.discount_kopecks });
+              }}
+            >
+              <Text style={styles.durText}>{promoApplied ? 'Убрать' : 'Применить'}</Text>
+            </TouchableOpacity>
+          </View>
+          {promoApplied && (
+            <Text style={{ fontSize: 12, color: COLORS.success, marginTop: 4 }}>✓ Скидка {promoApplied.percent}% · −{(promoApplied.discount_kopecks/100).toLocaleString('ru')} ₽</Text>
+          )}
 
           <View style={styles.summary}>
             <Text style={styles.summaryLine}>Длительность: <Text style={styles.summaryBold}>{duration} минут</Text></Text>

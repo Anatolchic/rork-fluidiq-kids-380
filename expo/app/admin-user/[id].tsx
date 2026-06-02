@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Act
 import { useLocalSearchParams, router } from 'expo-router';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { KeyRound, ShieldCheck, ShieldOff, Trash2, DollarSign, Eye, EyeOff } from 'lucide-react-native';
+import { KeyRound, ShieldCheck, ShieldOff, Trash2, DollarSign, Eye, EyeOff, Ban } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 
@@ -52,16 +52,37 @@ export default function AdminUserDetail() {
   }
 
   async function deleteUser() {
-    Alert.alert('Удалить пользователя?', 'Это действие необратимо. Все данные пользователя будут удалены.', [
+    Alert.alert('Удалить пользователя?', 'Используется soft delete (ФЗ-152) — данные останутся в БД но пользователь не сможет войти.', [
       { text: 'Отмена' },
-      { text: 'Удалить', style: 'destructive', onPress: async () => {
+      { text: 'Soft Delete', style: 'destructive', onPress: async () => {
         setWorking(true);
-        const { error } = await supabase.functions.invoke('admin-actions', { body: { action: 'delete_user', user_id: id } });
+        await supabase.rpc('admin_soft_delete_user', { p_user_id: id });
+        await supabase.rpc('log_admin_action', { p_action: 'soft_delete', p_table: 'user_roles', p_target: id, p_payload: {} });
         setWorking(false);
-        if (error) { Alert.alert('Ошибка', error.message); return; }
         router.back();
       }},
     ]);
+  }
+
+  async function toggleBan() {
+    const isBanned = !!data?.banned_at;
+    if (isBanned) {
+      Alert.alert('Снять бан?', '', [
+        { text: 'Отмена' },
+        { text: 'Снять', onPress: async () => {
+          await supabase.rpc('admin_unban_user', { p_user_id: id });
+          await supabase.rpc('log_admin_action', { p_action: 'unban', p_table: 'user_roles', p_target: id, p_payload: {} });
+          load();
+        }},
+      ]);
+    } else {
+      Alert.prompt?.('Причина бана', 'Будет видна юзеру при попытке входа', async (reason) => {
+        if (!reason) return;
+        await supabase.rpc('admin_ban_user', { p_user_id: id, p_reason: reason });
+        await supabase.rpc('log_admin_action', { p_action: 'ban', p_table: 'user_roles', p_target: id, p_payload: { reason } });
+        load();
+      });
+    }
   }
 
   async function togglePublished() {
@@ -146,9 +167,15 @@ export default function AdminUserDetail() {
               {data.role === 'admin' ? 'Снять права админа' : 'Назначить админом'}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity style={s.dangerBtn} onPress={toggleBan} disabled={working}>
+            <Ban size={18} color={data?.banned_at ? COLORS.success : COLORS.warning} />
+            <Text style={[s.dangerText, { color: data?.banned_at ? COLORS.success : COLORS.warning }]}>
+              {data?.banned_at ? `Снять бан (причина: ${data?.ban_reason || '—'})` : 'Забанить пользователя'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={s.dangerBtn} onPress={deleteUser} disabled={working}>
             <Trash2 size={18} color={COLORS.error} />
-            <Text style={[s.dangerText, { color: COLORS.error }]}>Удалить пользователя</Text>
+            <Text style={[s.dangerText, { color: COLORS.error }]}>Soft delete (ФЗ-152)</Text>
           </TouchableOpacity>
         </View>
 
