@@ -9,6 +9,7 @@ import { COLORS, BOOKING_STATUS_LABELS } from '../../lib/constants';
 import { Booking } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import { ListSkeleton } from '../../lib/Skeleton';
+import { loadBookings, BookingWithParticipants } from '../../lib/bookings';
 
 type Tab = 'pending' | 'upcoming' | 'past';
 
@@ -23,18 +24,15 @@ export default function TutorBookings() {
 
   async function load() {
     setLoading(true);
-    let q = supabase
-      .from('bookings')
-      .select('*, student:student_profiles!student_id(*)')
-      .eq('tutor_id', session!.user.id);
+    let q = supabase.from('bookings').select('*').eq('tutor_id', session!.user.id);
 
     const now = new Date().toISOString();
     if (tab === 'pending') q = q.eq('status', 'pending').order('created_at', { ascending: false });
     else if (tab === 'upcoming') q = q.in('status', ['confirmed', 'active']).gte('start_time', now).order('start_time', { ascending: true });
     else q = q.in('status', ['completed', 'cancelled']).order('start_time', { ascending: false });
 
-    const { data } = await q.limit(50);
-    setBookings((data as any) || []);
+    const data = await loadBookings(q.limit(50));
+    setBookings(data as any);
     setLoading(false);
   }
 

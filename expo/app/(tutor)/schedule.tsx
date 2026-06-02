@@ -1,56 +1,121 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, Modal, Platform } from 'react-native';
-import { Plus, Trash2, Clock } from 'lucide-react-native';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, Modal, Switch, Platform } from 'react-native';
+import { addDays, addMonths, format, parseISO, startOfMonth } from 'date-fns';
+import { ru as ruLocale } from 'date-fns/locale';
+import { Plus, Trash2, Repeat, CalendarDays } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
-import { COLORS, DAY_NAMES, DAY_SHORT } from '../../lib/constants';
-import { TutorAvailability } from '../../lib/types';
+import { COLORS, DAY_NAMES } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
+import CalendarMonth from '../../components/CalendarMonth';
+import { ru } from '../../lib/errors';
 
-const HOURS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+type AvailRow = {
+  id: string;
+  tutor_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  specific_date: string | null;
+};
+type Booking = { id: string; start_time: string; end_time: string; status: string; student_id: string };
+
+const HOURS_30 = Array.from({ length: 48 }, (_, i) => {
+  const h = Math.floor(i / 2), m = (i % 2) * 30;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+});
 
 export default function TutorSchedule() {
   const { session } = useAuthStore();
-  const [slots, setSlots] = useState<TutorAvailability[]>([]);
+  const [avails, setAvails] = useState<AvailRow[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerDay, setPickerDay] = useState<number | null>(null);
-  const [pickerStart, setPickerStart] = useState('09:00');
-  const [pickerEnd, setPickerEnd] = useState('18:00');
+  const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [addOpen, setAddOpen] = useState(false);
+  const [addRecurring, setAddRecurring] = useState(false);
+  const [pickStart, setPickStart] = useState('09:00');
+  const [pickEnd, setPickEnd] = useState('12:00');
 
-  useEffect(() => { if (session) load(); }, [session]);
+  useEffect(() => { if (session) load(); }, [session, month]);
 
   async function load() {
-    const { data } = await supabase.from('tutor_availability').select('*').eq('tutor_id', session!.user.id).order('day_of_week');
-    setSlots(data || []);
+    setLoading(true);
+    const monthStart = startOfMonth(month).toISOString();
+    const monthEnd = addMonths(startOfMonth(month), 1).toISOString();
+    const [a, b] = await Promise.all([
+      supabase.from('tutor_availability').select('*').eq('tutor_id', session!.user.id),
+      supabase.from('bookings').select('id, start_time, end_time, status, student_id')
+        .eq('tutor_id', session!.user.id)
+        .gte('start_time', monthStart).lt('start_time', monthEnd),
+    ]);
+    setAvails((a.data as any) || []);
+    setBookings((b.data as any) || []);
     setLoading(false);
   }
 
-  function openPicker(day: number) {
-    setPickerDay(day);
-    setPickerStart('09:00');
-    setPickerEnd('18:00');
-    setPickerOpen(true);
-  }
+  /** Маркеры дат: hasSlots / hasBookings / count */
+  const markers = useMemo(() => {
+    const map: Record<string, { hasSlots: boolean; hasBookings: boolean; bookingsCount: number }> = {};
+    // Bookings
+    bookings.forEach(b => {
+      if (b.status === 'cancelled') return;
+      const k = format(parseISO(b.start_time), 'yyyy-MM-dd');
+      if (!map[k]) map[k] = { hasSlots: false, hasBookings: true, bookingsCount: 0 };
+      map[k].hasBookings = true;
+      map[k].bookingsCount = (map[k].bookingsCount || 0) + 1;
+    });
+    // Slots: 30 дней вперёд
+    const today = new Date();
+    for (let i = 0; i < 60; i++) {
+      const d = addDays(today, i);
+      const k = format(d, 'yyyy-MM-dd');
+      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      const hasSpecific = avails.some(a => a.specific_date === k);
+      const hasWeekly = avails.some(a => a.specific_date === null && a.day_of_week === dow);
+      if (hasSpecific || hasWeekly) {
+        if (!map[k]) map[k] = { hasSlots: false, hasBookings: false, bookingsCount: 0 };
+        map[k].hasSlots = true;
+      }
+    }
+    return Object.entries(map).map(([date, m]) => ({ date, ...m }));
+  }, [avails, bookings]);
+
+  /** Слоты выбранной даты */
+  const dateSlots = useMemo(() => {
+    if (!selectedDate) return [];
+    const k = format(selectedDate, 'yyyy-MM-dd');
+    const dow = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1;
+    return avails.filter(a => a.specific_date === k || (a.specific_date === null && a.day_of_week === dow));
+  }, [selectedDate, avails]);
+
+  const dateBookings = useMemo(() => {
+    if (!selectedDate) return [];
+    const k = format(selectedDate, 'yyyy-MM-dd');
+    return bookings.filter(b => format(parseISO(b.start_time), 'yyyy-MM-dd') === k && b.status !== 'cancelled');
+  }, [selectedDate, bookings]);
 
   async function saveSlot() {
-    if (pickerDay === null) return;
-    if (pickerStart >= pickerEnd) {
-      Alert.alert('Ошибка', 'Время окончания должно быть позже начала');
-      return;
-    }
-    const { error } = await supabase.from('tutor_availability').upsert({
+    if (pickStart >= pickEnd) { Alert.alert('Время окончания должно быть позже начала'); return; }
+    if (!selectedDate) return;
+    const payload: any = {
       tutor_id: session!.user.id,
-      day_of_week: pickerDay,
-      start_time: pickerStart,
-      end_time: pickerEnd,
-    }, { onConflict: 'tutor_id,day_of_week' });
-    if (error) { Alert.alert('Ошибка', error.message); return; }
-    setPickerOpen(false);
-    load();
+      start_time: pickStart,
+      end_time: pickEnd,
+    };
+    if (addRecurring) {
+      payload.day_of_week = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1;
+      payload.specific_date = null;
+    } else {
+      payload.day_of_week = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1;
+      payload.specific_date = format(selectedDate, 'yyyy-MM-dd');
+    }
+    const { error } = await supabase.from('tutor_availability').insert(payload);
+    if (error) { Alert.alert('Ошибка', ru(error)); return; }
+    setAddOpen(false); load();
   }
 
   async function removeSlot(id: string) {
-    Alert.alert('Удалить слот?', 'Ученики не смогут больше записаться на этот день', [
+    Alert.alert('Удалить слот?', '', [
       { text: 'Отмена' },
       { text: 'Удалить', style: 'destructive', onPress: async () => {
         await supabase.from('tutor_availability').delete().eq('id', id);
@@ -59,72 +124,104 @@ export default function TutorSchedule() {
     ]);
   }
 
-  if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  if (loading) return <View style={s.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Расписание</Text>
-        <Text style={styles.subtitle}>Часы, в которые принимаете учеников. По одному окну на день — ученик выбирает слот внутри.</Text>
-      </View>
+    <SafeAreaView style={s.container}>
+      <ScrollView contentContainerStyle={s.scroll}>
+        <Text style={s.title}>Расписание</Text>
+        <Text style={s.sub}>Зелёным подсвечены даты со слотами, жёлтым — с бронированиями. Тапни дату, чтобы добавить или убрать слот.</Text>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {DAY_NAMES.map((dayName, dayIdx) => {
-          const slot = slots.find(s => s.day_of_week === dayIdx);
-          return (
-            <View key={dayIdx} style={[styles.dayCard, slot && styles.dayCardActive]}>
-              <View style={styles.dayInfo}>
-                <Text style={styles.dayName}>{dayName}</Text>
-                {slot ? (
-                  <View style={styles.timeRow}>
-                    <Clock size={14} color={COLORS.primary} />
-                    <Text style={styles.timeText}>{slot.start_time} — {slot.end_time}</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.dayOff}>Выходной</Text>
-                )}
-              </View>
-              {slot ? (
-                <TouchableOpacity style={styles.removeBtn} onPress={() => removeSlot(slot.id)}>
-                  <Trash2 size={16} color={COLORS.error} />
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.addBtn} onPress={() => openPicker(dayIdx)}>
-                  <Plus size={16} color={COLORS.primary} />
-                  <Text style={styles.addText}>Добавить</Text>
-                </TouchableOpacity>
-              )}
+        <View style={s.calendarCard}>
+          <CalendarMonth
+            month={month}
+            onMonthChange={setMonth}
+            selectedDate={selectedDate}
+            onSelect={setSelectedDate}
+            markers={markers}
+          />
+        </View>
+
+        {selectedDate && (
+          <View style={s.dateBlock}>
+            <View style={s.dateHeader}>
+              <Text style={s.dateTitle}>{format(selectedDate, 'd MMMM, EEEE', { locale: ruLocale })}</Text>
+              <TouchableOpacity style={s.addBtn} onPress={() => setAddOpen(true)}>
+                <Plus size={16} color="#fff" />
+                <Text style={s.addBtnText}>Добавить</Text>
+              </TouchableOpacity>
             </View>
-          );
-        })}
+
+            {dateSlots.length === 0 && dateBookings.length === 0 ? (
+              <View style={s.empty}>
+                <Text style={s.emptyText}>Нет слотов на этот день</Text>
+              </View>
+            ) : (
+              <>
+                {dateSlots.map(slot => (
+                  <View key={slot.id} style={s.slotRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.slotTime}>{slot.start_time} — {slot.end_time}</Text>
+                      <View style={s.slotMeta}>
+                        {slot.specific_date ? (
+                          <View style={s.tag}><CalendarDays size={11} color={COLORS.warning} /><Text style={[s.tagText, { color: COLORS.warning }]}>Только эта дата</Text></View>
+                        ) : (
+                          <View style={s.tag}><Repeat size={11} color={COLORS.primary} /><Text style={[s.tagText, { color: COLORS.primary }]}>Каждый {DAY_NAMES[slot.day_of_week].toLowerCase()}</Text></View>
+                        )}
+                      </View>
+                    </View>
+                    <TouchableOpacity style={s.delBtn} onPress={() => removeSlot(slot.id)}>
+                      <Trash2 size={14} color={COLORS.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {dateBookings.map(b => (
+                  <View key={b.id} style={[s.slotRow, { backgroundColor: COLORS.warning + '15', borderColor: COLORS.warning + '40' }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.slotTime}>{format(parseISO(b.start_time), 'HH:mm')} — {format(parseISO(b.end_time), 'HH:mm')}</Text>
+                      <Text style={[s.slotMeta, { color: COLORS.warning }]}>Бронь · {b.status === 'pending' ? 'ожидает' : b.status === 'confirmed' ? 'подтверждена' : b.status}</Text>
+                    </View>
+                  </View>
+                ))}
+              </>
+            )}
+          </View>
+        )}
       </ScrollView>
 
-      <Modal visible={pickerOpen} animationType="slide" transparent onRequestClose={() => setPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{pickerDay !== null ? DAY_NAMES[pickerDay] : ''}</Text>
-            <Text style={styles.modalLabel}>Начало</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hourScroll}>
-              {HOURS.map(h => (
-                <TouchableOpacity key={h} style={[styles.hourChip, pickerStart === h && styles.hourChipActive]} onPress={() => setPickerStart(h)}>
-                  <Text style={[styles.hourText, pickerStart === h && styles.hourTextActive]}>{h}</Text>
+      <Modal visible={addOpen} animationType="slide" transparent onRequestClose={() => setAddOpen(false)}>
+        <View style={s.modalRoot}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>Новый слот на {selectedDate && format(selectedDate, 'd MMMM', { locale: ruLocale })}</Text>
+            <Text style={s.modalLabel}>Начало</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hourScroll}>
+              {HOURS_30.map(h => (
+                <TouchableOpacity key={h} style={[s.hourChip, pickStart === h && s.hourChipActive]} onPress={() => setPickStart(h)}>
+                  <Text style={[s.hourText, pickStart === h && s.hourTextActive]}>{h}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <Text style={styles.modalLabel}>Окончание</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hourScroll}>
-              {HOURS.map(h => (
-                <TouchableOpacity key={h} style={[styles.hourChip, pickerEnd === h && styles.hourChipActive]} onPress={() => setPickerEnd(h)}>
-                  <Text style={[styles.hourText, pickerEnd === h && styles.hourTextActive]}>{h}</Text>
+            <Text style={s.modalLabel}>Окончание</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hourScroll}>
+              {HOURS_30.map(h => (
+                <TouchableOpacity key={h} style={[s.hourChip, pickEnd === h && s.hourChipActive]} onPress={() => setPickEnd(h)}>
+                  <Text style={[s.hourText, pickEnd === h && s.hourTextActive]}>{h}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setPickerOpen(false)}>
-                <Text style={styles.modalCancelText}>Отмена</Text>
+            <View style={s.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalLabel}>Повторять каждую неделю</Text>
+                <Text style={s.hint}>На все {selectedDate ? DAY_NAMES[selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1].toLowerCase() : ''}</Text>
+              </View>
+              <Switch value={addRecurring} onValueChange={setAddRecurring} trackColor={{ true: COLORS.primary, false: COLORS.border }} />
+            </View>
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalCancel} onPress={() => setAddOpen(false)}>
+                <Text style={s.modalCancelText}>Отмена</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSave} onPress={saveSlot}>
-                <Text style={styles.modalSaveText}>Сохранить</Text>
+              <TouchableOpacity style={s.modalSave} onPress={saveSlot}>
+                <Text style={s.modalSaveText}>Сохранить</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -134,33 +231,38 @@ export default function TutorSchedule() {
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  header: { padding: 20, paddingBottom: 8, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
-  title: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
-  subtitle: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  scroll: { padding: 16, gap: 10, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
-  dayCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: COLORS.border },
-  dayCardActive: { borderColor: COLORS.primary + '40' },
-  dayInfo: { flex: 1, gap: 4 },
-  dayName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  timeText: { fontSize: 13, color: COLORS.primary, fontWeight: '500' },
-  dayOff: { fontSize: 13, color: COLORS.textSecondary },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.primaryLight },
-  addText: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
-  removeBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 10, backgroundColor: COLORS.error + '15' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: COLORS.background, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 20, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 12 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  modalLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginTop: 4 },
+  scroll: { padding: 16, gap: 12, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
+  title: { fontSize: 26, fontWeight: '700', color: COLORS.text },
+  sub: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
+  calendarCard: { backgroundColor: COLORS.white, borderRadius: 14, padding: 10 },
+  dateBlock: { backgroundColor: COLORS.white, borderRadius: 14, padding: 14, gap: 10 },
+  dateHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dateTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.primary },
+  addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  empty: { paddingVertical: 16, alignItems: 'center' },
+  emptyText: { fontSize: 13, color: COLORS.textSecondary },
+  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: COLORS.success + '10', borderRadius: 10, borderWidth: 1, borderColor: COLORS.success + '30' },
+  slotTime: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  slotMeta: { fontSize: 11, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tagText: { fontSize: 11, fontWeight: '600' },
+  delBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.error + '15' },
+  modalRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modal: { backgroundColor: COLORS.background, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 20, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 10 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  modalLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginTop: 2 },
+  hint: { fontSize: 11, color: COLORS.textSecondary },
   hourScroll: { gap: 6, paddingVertical: 4 },
   hourChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 60, alignItems: 'center' },
   hourChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   hourText: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
   hourTextActive: { color: '#fff' },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
   modalCancel: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
   modalCancelText: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '600' },
   modalSave: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 },

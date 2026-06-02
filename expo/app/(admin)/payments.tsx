@@ -17,10 +17,17 @@ export default function AdminPayments() {
 
   async function load() {
     setLoading(true);
-    let q = supabase.from('payments').select('*, tutor:tutor_profiles!tutor_id(name)').order('created_at', { ascending: false });
+    let q = supabase.from('payments').select('*').order('created_at', { ascending: false });
     if (filter) q = q.eq('type', filter);
-    const { data } = await q.limit(200);
-    setList(data || []);
+    const { data: pays } = await q.limit(200);
+    // Подтягиваем имена репетиторов отдельно
+    if (pays?.length) {
+      const tutorIds = [...new Set(pays.map(p => p.tutor_id))];
+      const { data: tutors } = await supabase.from('tutor_profiles').select('user_id, name').in('user_id', tutorIds);
+      const m: Record<string, string> = {};
+      (tutors || []).forEach(t => { m[t.user_id] = t.name; });
+      setList(pays.map(p => ({ ...p, tutor: { name: m[p.tutor_id] || '—' } })));
+    } else setList([]);
     setLoading(false);
   }
 

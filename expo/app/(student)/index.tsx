@@ -10,6 +10,7 @@ import { COLORS, SUBJECTS, LEVELS } from '../../lib/constants';
 import { TutorProfile } from '../../lib/types';
 import { useResponsive } from '../../lib/responsive';
 import { TutorCardSkeleton } from '../../lib/Skeleton';
+import NotificationBell from '../../components/NotificationBell';
 
 export default function StudentCatalog() {
   const { gridCols, contentMaxWidth, isDesktop } = useResponsive();
@@ -61,8 +62,9 @@ export default function StudentCatalog() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Шапка */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
         <Text style={styles.headerTitle}>Найти репетитора</Text>
+        <NotificationBell />
       </View>
 
       {/* Поиск */}

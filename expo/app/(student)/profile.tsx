@@ -6,6 +6,7 @@ import { COLORS } from '../../lib/constants';
 import { StudentProfile } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import SettingsSection from '../../components/SettingsSection';
+import AvatarPicker from '../../components/AvatarPicker';
 import { ru } from '../../lib/errors';
 
 export default function StudentProfileScreen() {
@@ -47,10 +48,17 @@ export default function StudentProfileScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.avatarSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{name.charAt(0).toUpperCase() || '?'}</Text>
-          </View>
-          <Text style={styles.email}>{session?.user.email}</Text>
+          <AvatarPicker
+            userId={session!.user.id}
+            photoUrl={profile?.photo_url}
+            name={name}
+            onUpdate={async (url) => {
+              if (profile) setProfile({ ...profile, photo_url: url });
+              await supabase.from('student_profiles').upsert({ user_id: session!.user.id, photo_url: url, name: name || 'Ученик' }, { onConflict: 'user_id' });
+            }}
+            size={80}
+          />
+          <Text style={[styles.email, { marginTop: 10 }]}>{session?.user.email}</Text>
         </View>
 
         <View style={styles.section}>

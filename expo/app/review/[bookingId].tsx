@@ -20,10 +20,15 @@ export default function ReviewScreen() {
 
   async function load() {
     const [b, r] = await Promise.all([
-      supabase.from('bookings').select('*, tutor:tutor_profiles!tutor_id(name)').eq('id', bookingId).maybeSingle(),
+      supabase.from('bookings').select('*').eq('id', bookingId).maybeSingle(),
       supabase.from('reviews').select('*').eq('booking_id', bookingId).maybeSingle(),
     ]);
-    setBooking(b.data);
+    let bookingData: any = b.data;
+    if (bookingData) {
+      const { data: t } = await supabase.from('tutor_profiles').select('name').eq('user_id', bookingData.tutor_id).maybeSingle();
+      bookingData = { ...bookingData, tutor: t };
+    }
+    setBooking(bookingData);
     if (r.data) {
       setExisting(r.data);
       setRating(r.data.rating);

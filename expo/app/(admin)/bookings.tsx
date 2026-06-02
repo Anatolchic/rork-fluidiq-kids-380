@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS } from '../../lib/constants';
+import { loadBookings } from '../../lib/bookings';
 
 export default function AdminBookings() {
   const [list, setList] = useState<any[]>([]);
@@ -16,10 +17,10 @@ export default function AdminBookings() {
 
   async function load() {
     setLoading(true);
-    let q = supabase.from('bookings').select('*, tutor:tutor_profiles!tutor_id(name), student:student_profiles!student_id(name, user_id)').order('start_time', { ascending: false });
+    let q = supabase.from('bookings').select('*').order('start_time', { ascending: false });
     if (filter) q = q.eq('status', filter);
-    const { data } = await q.limit(200);
-    setList(data || []);
+    const data = await loadBookings(q.limit(200));
+    setList(data as any);
     setLoading(false);
   }
 

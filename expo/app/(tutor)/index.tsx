@@ -8,6 +8,8 @@ import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS, MIN_BALANCE_KOPECKS } from '../../lib/constants';
 import { Booking, TutorProfile } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import { loadBookings } from '../../lib/bookings';
+import NotificationBell from '../../components/NotificationBell';
 
 export default function TutorHome() {
   const { session } = useAuthStore();
@@ -21,16 +23,21 @@ export default function TutorHome() {
 
   async function load() {
     setLoading(true);
-    const [p, b, s] = await Promise.all([
-      supabase.from('tutor_profiles').select('*').eq('user_id', session!.user.id).single(),
-      supabase.from('bookings').select('*, student:student_profiles!student_id(*)').eq('tutor_id', session!.user.id).gte('start_time', new Date().toISOString()).in('status', ['pending', 'confirmed', 'active']).order('start_time', { ascending: true }).limit(5),
+    const [p, bookings, s] = await Promise.all([
+      supabase.from('tutor_profiles').select('*').eq('user_id', session!.user.id).maybeSingle(),
+      loadBookings(
+        supabase.from('bookings').select('*').eq('tutor_id', session!.user.id)
+          .gte('start_time', new Date().toISOString())
+          .in('status', ['pending', 'confirmed', 'active'])
+          .order('start_time', { ascending: true }).limit(5)
+      ),
       supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('tutor_id', session!.user.id).eq('status', 'completed'),
     ]);
     if (p.data) {
       setProfile(p.data);
       setStats(prev => ({ ...prev, rating: p.data.rating || 0, reviewsCount: p.data.reviews_count || 0 }));
     }
-    setUpcoming((b.data as any) || []);
+    setUpcoming(bookings as any);
     setStats(prev => ({ ...prev, totalLessons: s.count || 0 }));
     setLoading(false);
   }
@@ -60,14 +67,15 @@ export default function TutorHome() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
         <View style={styles.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>Здравствуйте,</Text>
             <Text style={styles.name}>{profile?.name || 'Репетитор'}</Text>
           </View>
+          <NotificationBell />
           <TouchableOpacity style={[styles.publishBadge, profile?.is_published ? styles.publishBadgeOn : styles.publishBadgeOff]} onPress={togglePublish}>
             {profile?.is_published ? <Eye size={14} color={COLORS.success} /> : <EyeOff size={14} color={COLORS.textSecondary} />}
             <Text style={[styles.publishText, { color: profile?.is_published ? COLORS.success : COLORS.textSecondary }]}>
-              {profile?.is_published ? 'Виден ученикам' : 'Скрыт'}
+              {profile?.is_published ? 'Виден' : 'Скрыт'}
             </Text>
           </TouchableOpacity>
         </View>

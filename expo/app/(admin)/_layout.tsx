@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Slot, Tabs, router, useSegments } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Users, GraduationCap, Calendar, DollarSign, MessageSquare, Settings, User, LogOut } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
@@ -22,6 +23,7 @@ export default function AdminLayout() {
   const { profile, loading, session, setSession, setProfile } = useAuthStore();
   const { isDesktop } = useResponsive();
   const segments = useSegments();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!loading && profile && profile.role !== 'admin') {
@@ -73,8 +75,8 @@ export default function AdminLayout() {
       screenOptions={{
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
-        tabBarStyle: { backgroundColor: COLORS.white, borderTopColor: COLORS.border, height: 64, paddingBottom: 8, paddingTop: 6 },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        tabBarStyle: { backgroundColor: COLORS.white, borderTopColor: COLORS.border, height: 56 + insets.bottom, paddingBottom: insets.bottom + 4, paddingTop: 8 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 2 },
         headerShown: false,
       }}
     >

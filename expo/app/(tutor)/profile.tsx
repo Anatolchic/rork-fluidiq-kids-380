@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, TextInput, Alert, Switch, Platform } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS, PAYMENT_METHODS } from '../../lib/constants';
 import { TutorProfile, LessonDuration, PaymentMethod } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import AvatarPicker from '../../components/AvatarPicker';
 import SettingsSection from '../../components/SettingsSection';
 import { ru } from '../../lib/errors';
 
@@ -28,21 +28,10 @@ export default function TutorProfileScreen() {
     setProfile({ ...profile, ...p });
   }
 
-  async function pickPhoto() {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.7 });
-    if (res.canceled || !res.assets[0]) return;
-    try {
-      const ext = res.assets[0].uri.split('.').pop() || 'jpg';
-      const filename = `${session!.user.id}/avatar.${ext}`;
-      const blob = await (await fetch(res.assets[0].uri)).blob();
-      const { error } = await supabase.storage.from('avatars').upload(filename, blob, { upsert: true, contentType: `image/${ext}` });
-      if (error) throw error;
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filename);
-      patch({ photo_url: data.publicUrl });
-      Alert.alert('Фото обновлено', 'Не забудьте нажать «Сохранить»');
-    } catch (e: any) {
-      Alert.alert('Не удалось загрузить', e.message);
-    }
+  async function onPhotoUpdate(url: string) {
+    patch({ photo_url: url });
+    // Сохраним сразу, чтобы фото не потерялось при перезагрузке
+    await supabase.from('tutor_profiles').update({ photo_url: url }).eq('user_id', session!.user.id);
   }
 
   async function save() {
@@ -87,15 +76,13 @@ export default function TutorProfileScreen() {
         <Text style={styles.title}>Профиль</Text>
 
         <View style={styles.card}>
-          <TouchableOpacity style={styles.avatarRow} onPress={pickPhoto}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{profile.name?.charAt(0)?.toUpperCase() || 'Р'}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
+          <View style={styles.avatarRow}>
+            <AvatarPicker userId={session!.user.id} photoUrl={profile.photo_url} name={profile.name} onUpdate={onPhotoUpdate} size={72} />
+            <View style={{ flex: 1, marginLeft: 14 }}>
               <Text style={styles.email}>{session?.user.email}</Text>
-              <Text style={styles.avatarHint}>Нажмите чтобы изменить фото</Text>
+              <Text style={styles.avatarHint}>Тапни по фото чтобы изменить</Text>
             </View>
-          </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.card}>

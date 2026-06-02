@@ -24,10 +24,18 @@ export default function BookingDetails() {
   async function load() {
     setLoading(true);
     const [b, c] = await Promise.all([
-      supabase.from('bookings').select('*, tutor:tutor_profiles!tutor_id(*), student:student_profiles!student_id(*)').eq('id', id).maybeSingle(),
+      supabase.from('bookings').select('*').eq('id', id).maybeSingle(),
       supabase.from('chat_rooms').select('id').eq('booking_id', id).maybeSingle(),
     ]);
-    setBooking(b.data);
+    let bookingData: any = b.data;
+    if (bookingData) {
+      const [t, st] = await Promise.all([
+        supabase.from('tutor_profiles').select('*').eq('user_id', bookingData.tutor_id).maybeSingle(),
+        supabase.from('student_profiles').select('*').eq('user_id', bookingData.student_id).maybeSingle(),
+      ]);
+      bookingData = { ...bookingData, tutor: t.data, student: st.data };
+    }
+    setBooking(bookingData);
     setChatRoomId(c.data?.id || null);
     if (b.data?.tutor_id && profile?.role === 'tutor') {
       const { data: t } = await supabase.from('tutor_profiles').select('balance').eq('user_id', b.data.tutor_id).maybeSingle();

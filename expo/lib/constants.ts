@@ -1,6 +1,20 @@
 export const SUBJECTS = ['Математика','Физика','Химия','Биология','История','География','Литература','Русский язык','Английский язык','Немецкий язык','Французский язык','Информатика','Обществознание','Экономика','Право','Музыка','Рисование','Шахматы','Другое'];
 export const LEVELS = ['Дошкольник','Школьник (1-4 класс)','Школьник (5-9 класс)','Подготовка к ОГЭ','Подготовка к ЕГЭ','Студент','Взрослый'];
-export const LESSON_DURATIONS = [{label:'30 минут',value:30},{label:'45 минут',value:45},{label:'1 час',value:60},{label:'1.5 часа',value:90}];
+// Слоты кратные 30 минутам. Реальный урок = slot - lesson_break_minutes (по умолчанию 10).
+// Например при slot=60: «1 час (50 мин урок + 10 мин перерыв)».
+export const LESSON_DURATIONS = [
+  { label: '30 мин', value: 30 },
+  { label: '60 мин', value: 60 },
+  { label: '90 мин', value: 90 },
+  { label: '120 мин', value: 120 },
+] as const;
+export const SLOT_STEP_MINUTES = 30;
+export const DEFAULT_LESSON_BREAK = 10;
+export function formatLessonDuration(slot: number, breakMin: number = DEFAULT_LESSON_BREAK): string {
+  const lesson = Math.max(slot - breakMin, slot);
+  if (slot <= breakMin || lesson === slot) return `${slot} мин`;
+  return `${slot} мин (${slot - breakMin} мин урок + ${breakMin} мин перерыв)`;
+}
 export const PAYMENT_METHODS = [{value:'card',label:'Перевод на карту'},{value:'phone',label:'По номеру телефона'},{value:'bank',label:'По реквизитам банка'},{value:'phone_top',label:'Пополнение телефона'},{value:'other',label:'Другой способ'}] as const;
 export const BOOKING_STATUS_LABELS: Record<string,string> = {pending:'Ожидает подтверждения',confirmed:'Подтверждено',active:'Идёт урок',completed:'Завершён',cancelled:'Отменён'};
 export const DAY_NAMES = ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'];

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { Fingerprint, Bell, LogOut } from 'lucide-react-native';
+import * as Linking from 'expo-linking';
+import { Fingerprint, Bell, LogOut, Send } from 'lucide-react-native';
 import supabase from '../lib/supabase';
 import { COLORS } from '../lib/constants';
 import { ru } from '../lib/errors';
@@ -34,18 +35,25 @@ export default function SettingsSection() {
   const [bioSupported, setBioSupported] = useState(false);
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const [tgLinked, setTgLinked] = useState<{ username: string | null } | null>(null);
+  const [tgWorking, setTgWorking] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const TG_BOT_USERNAME = (process.env.EXPO_PUBLIC_TG_BOT_USERNAME || '').replace(/^@/, '');
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
-    const [enabled, sup, kind, p] = await Promise.all([
+    const [enabled, sup, kind, p, tg] = await Promise.all([
       isBiometricEnabled(),
       isBiometricSupported(),
       getBiometricKind(),
       supabase.from('notification_prefs').select('*').maybeSingle(),
+      supabase.rpc('telegram_status'),
     ]);
+    const tgRow = tg.data?.[0];
+    setTgLinked(tgRow?.linked ? { username: tgRow.username } : null);
     setBioOn(enabled);
     setBioSupported(sup);
     setBioKind(kind);
@@ -98,6 +106,29 @@ export default function SettingsSection() {
       events: p.events,
     });
     if (error) Alert.alert('Не сохранено', ru(error));
+  }
+
+  async function connectTelegram() {
+    if (!TG_BOT_USERNAME) {
+      Alert.alert('Telegram пока недоступен', 'Бот ещё не подключён. Обратитесь в поддержку.');
+      return;
+    }
+    setTgWorking(true);
+    const { data, error } = await supabase.rpc('telegram_create_link_token');
+    setTgWorking(false);
+    if (error) { Alert.alert('Не удалось', ru(error)); return; }
+    const url = `https://t.me/${TG_BOT_USERNAME}?start=${data}`;
+    Linking.openURL(url).catch(() => Alert.alert('Не открылся Telegram', url));
+  }
+
+  async function disconnectTelegram() {
+    Alert.alert('Отключить Telegram?', 'Уведомления в боте перестанут приходить', [
+      { text: 'Отмена' },
+      { text: 'Отключить', style: 'destructive', onPress: async () => {
+        await supabase.rpc('telegram_unlink');
+        setTgLinked(null);
+      }},
+    ]);
   }
 
   async function logout() {
@@ -169,6 +200,36 @@ export default function SettingsSection() {
         )}
       </View>
 
+      <View style={s.card}>
+        <Text style={s.title}>Telegram-уведомления</Text>
+        {tgLinked ? (
+          <>
+            <View style={s.row}>
+              <View style={s.rowLeft}>
+                <Send size={18} color={COLORS.success} />
+                <View>
+                  <Text style={s.rowLabel}>Подключено{tgLinked.username ? ` · @${tgLinked.username}` : ''}</Text>
+                  <Text style={s.rowSub}>Уведомления приходят в бот</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={disconnectTelegram} disabled={tgWorking}>
+                <Text style={{ color: COLORS.error, fontWeight: '600', fontSize: 13 }}>Отключить</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={s.hint}>Подключите бота — будете получать важные уведомления в Telegram параллельно с push.</Text>
+            <TouchableOpacity style={[s.tgBtn, tgWorking && { opacity: 0.5 }]} disabled={tgWorking} onPress={connectTelegram}>
+              {tgWorking ? <ActivityIndicator color="#fff" /> : <>
+                <Send size={16} color="#fff" />
+                <Text style={s.tgBtnText}>Подключить Telegram</Text>
+              </>}
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
       <TouchableOpacity style={s.logout} onPress={logout}>
         <LogOut size={16} color={COLORS.error} />
         <Text style={s.logoutText}>Выйти из аккаунта</Text>
@@ -190,5 +251,7 @@ const s = StyleSheet.create({
   eventRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   eventLabel: { fontSize: 13, color: COLORS.text, flex: 1 },
   logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.error + '40' },
+  tgBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, backgroundColor: '#229ED9', borderRadius: 10 },
+  tgBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   logoutText: { color: COLORS.error, fontSize: 14, fontWeight: '600' },
 });

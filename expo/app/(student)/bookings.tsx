@@ -11,6 +11,7 @@ import { COLORS, BOOKING_STATUS_LABELS } from '../../lib/constants';
 import { Booking } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import { ListSkeleton } from '../../lib/Skeleton';
+import { loadBookings } from '../../lib/bookings';
 
 export default function StudentBookings() {
   const { session } = useAuthStore();
@@ -26,7 +27,7 @@ export default function StudentBookings() {
     const now = new Date().toISOString();
     let query = supabase
       .from('bookings')
-      .select('*, tutor:tutor_profiles!tutor_id(*)')
+      .select('*')
       .eq('student_id', session!.user.id)
       .order('start_time', { ascending: tab === 'upcoming' });
 
@@ -36,8 +37,8 @@ export default function StudentBookings() {
       query = query.in('status', ['completed', 'cancelled']);
     }
 
-    const { data } = await query.limit(30);
-    setBookings((data as any) || []);
+    const data = await loadBookings(query.limit(30));
+    setBookings(data as any);
     setLoading(false);
   }
 
