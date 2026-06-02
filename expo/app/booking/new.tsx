@@ -13,31 +13,39 @@ const SLOT_INTERVAL_MIN = 30;
 
 type Slot = { iso: string; label: string; isBusy: boolean };
 
+const INTRO_DURATION = 30; // 30-минутный слот = 25 мин урок + 5 мин
+
 export default function BookingNew() {
-  const { tutor: tutorId } = useLocalSearchParams<{ tutor: string }>();
+  const { tutor: tutorId, date: presetDate } = useLocalSearchParams<{ tutor: string; date?: string }>();
   const { session } = useAuthStore();
 
   const [tutor, setTutor] = useState<TutorProfile | null>(null);
   const [availability, setAvailability] = useState<TutorAvailability[]>([]);
   const [busy, setBusy] = useState<Booking[]>([]);
+  const [previousBookings, setPreviousBookings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(presetDate ? new Date(presetDate) : null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [duration, setDuration] = useState<LessonDuration>(60);
+  const [isIntro, setIsIntro] = useState(false);
   const [subject, setSubject] = useState<Subject | null>(null);
   const [level, setLevel] = useState<Level | null>(null);
   const [topic, setTopic] = useState('');
 
-  useEffect(() => { if (tutorId) load(); }, [tutorId]);
+  useEffect(() => { if (tutorId && session) load(); }, [tutorId, session]);
 
   async function load() {
     setLoading(true);
-    const [t, a, b] = await Promise.all([
+    const [t, a, b, prev] = await Promise.all([
       supabase.from('tutor_profiles').select('*').eq('user_id', tutorId).maybeSingle(),
       supabase.from('tutor_availability').select('*').eq('tutor_id', tutorId),
       supabase.from('bookings').select('*').eq('tutor_id', tutorId).gte('start_time', new Date().toISOString()).in('status', ['pending', 'confirmed', 'active']),
+      // Сколько уроков уже было у этого ученика с этим репетитором (для intro-флага)
+      session ? supabase.from('bookings').select('id', { count: 'exact', head: true })
+        .eq('tutor_id', tutorId).eq('student_id', session.user.id)
+        .neq('status', 'cancelled') : Promise.resolve({ count: 0 }),
     ]);
     if (t.data) {
       setTutor(t.data);
@@ -47,7 +55,25 @@ export default function BookingNew() {
     }
     setAvailability(a.data || []);
     setBusy(b.data || []);
+    setPreviousBookings(prev.count || 0);
     setLoading(false);
+  }
+
+  // Когда юзер включает «ознакомительный» — заставим duration=30
+  function toggleIntro() {
+    const next = !isIntro;
+    setIsIntro(next);
+    if (next) setDuration(INTRO_DURATION as LessonDuration);
+    setSelectedTime(null);
+  }
+
+  // Возвращает массив availability-окон для конкретной даты с учётом specific_date overrides
+  function availForDate(date: Date) {
+    const k = format(date, 'yyyy-MM-dd');
+    const dow = date.getDay() === 0 ? 6 : date.getDay() - 1;
+    const specific = availability.filter(a => a.specific_date === k);
+    if (specific.length > 0) return specific; // override побеждает
+    return availability.filter(a => a.specific_date === null && a.day_of_week === dow);
   }
 
   const availableDates = useMemo(() => {
@@ -55,35 +81,39 @@ export default function BookingNew() {
     const dates: Date[] = [];
     for (let i = 0; i < DAYS_AHEAD; i++) {
       const d = addDays(today, i);
-      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
-      if (availability.some(a => a.day_of_week === dow)) dates.push(d);
+      if (availForDate(d).length > 0) dates.push(d);
     }
     return dates;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availability]);
 
   const slotsForDate = useMemo<Slot[]>(() => {
     if (!selectedDate) return [];
-    const dow = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1;
-    const slot = availability.find(a => a.day_of_week === dow);
-    if (!slot) return [];
-    const [sh, sm] = slot.start_time.split(':').map(Number);
-    const [eh, em] = slot.end_time.split(':').map(Number);
-    const start = new Date(selectedDate); start.setHours(sh, sm, 0, 0);
-    const end = new Date(selectedDate); end.setHours(eh, em, 0, 0);
+    const slots = availForDate(selectedDate);
+    if (!slots.length) return [];
     const now = new Date();
     const out: Slot[] = [];
-    let cur = new Date(start);
-    while (isBefore(addMinutes(cur, duration), end) || +addMinutes(cur, duration) === +end) {
-      const slotEnd = addMinutes(cur, duration);
-      const isBusy = busy.some(b => {
-        const bs = new Date(b.start_time); const be = new Date(b.end_time);
-        return cur < be && slotEnd > bs;
-      });
-      const inPast = isBefore(cur, now);
-      out.push({ iso: cur.toISOString(), label: format(cur, 'HH:mm'), isBusy: isBusy || inPast });
-      cur = addMinutes(cur, SLOT_INTERVAL_MIN);
+    for (const slot of slots) {
+      const [sh, sm] = slot.start_time.split(':').map(Number);
+      const [eh, em] = slot.end_time.split(':').map(Number);
+      const start = new Date(selectedDate); start.setHours(sh, sm, 0, 0);
+      const end = new Date(selectedDate); end.setHours(eh, em, 0, 0);
+      let cur = new Date(start);
+      while (isBefore(addMinutes(cur, duration), end) || +addMinutes(cur, duration) === +end) {
+        const slotEnd = addMinutes(cur, duration);
+        const isBusy = busy.some(b => {
+          const bs = new Date(b.start_time); const be = new Date(b.end_time);
+          return cur < be && slotEnd > bs;
+        });
+        const inPast = isBefore(cur, now);
+        out.push({ iso: cur.toISOString(), label: format(cur, 'HH:mm'), isBusy: isBusy || inPast });
+        cur = addMinutes(cur, SLOT_INTERVAL_MIN);
+      }
     }
-    return out;
+    // дедуп по iso
+    const seen = new Set<string>();
+    return out.filter(s => seen.has(s.iso) ? false : (seen.add(s.iso), true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, availability, busy, duration]);
 
   function canBook(): boolean {
@@ -96,7 +126,10 @@ export default function BookingNew() {
     try {
       const start = new Date(selectedTime!);
       const end = addMinutes(start, duration);
-      const price = Math.round((tutor.price_per_hour * duration) / 60);
+      // Ознакомительный — 50% от цены 30-минутного слота (примерно полцены за пол-урока)
+      const price = isIntro && previousBookings === 0
+        ? Math.round((tutor.price_per_hour * 25) / 60 / 2)
+        : Math.round((tutor.price_per_hour * duration) / 60);
       const status = tutor.auto_confirm ? 'confirmed' : 'pending';
 
       const { data: bookingData, error: bookingError } = await supabase
@@ -112,6 +145,7 @@ export default function BookingNew() {
           topic: topic.trim() || null,
           status,
           price,
+          is_intro: isIntro && previousBookings === 0,
         })
         .select('id')
         .single();
@@ -163,6 +197,18 @@ export default function BookingNew() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {previousBookings === 0 && (
+            <TouchableOpacity style={[introStyles.card, isIntro && introStyles.cardActive]} onPress={toggleIntro} activeOpacity={0.8}>
+              <View style={[introStyles.check, isIntro && introStyles.checkOn]}>
+                {isIntro && <Text style={introStyles.checkMark}>✓</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={introStyles.title}>🎁 Ознакомительный урок · 25 мин</Text>
+                <Text style={introStyles.sub}>Только для первого занятия с этим репетитором — со скидкой 50% от обычной цены. Слот занимает 30 минут (25 мин урок + 5 мин знакомство).</Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           <Text style={styles.label}>Длительность</Text>
           <View style={styles.chipsWrap}>
@@ -239,6 +285,16 @@ export default function BookingNew() {
     </SafeAreaView>
   );
 }
+
+const introStyles = StyleSheet.create({
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginTop: 12, backgroundColor: COLORS.warning + '15', borderRadius: 12, borderWidth: 1, borderColor: COLORS.warning + '40' },
+  cardActive: { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary },
+  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
+  checkOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  title: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  sub: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17, marginTop: 2 },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
