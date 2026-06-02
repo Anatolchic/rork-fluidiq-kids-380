@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, TextInput, Alert, Switch, Platform } from 'react-native';
 import { router } from 'expo-router';
+import { format } from 'date-fns';
+import { ru as ruLocale } from 'date-fns/locale';
+import { ShieldCheck, ChevronRight } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS, PAYMENT_METHODS } from '../../lib/constants';
 import { TutorProfile, LessonDuration, PaymentMethod } from '../../lib/types';
@@ -84,6 +87,30 @@ export default function TutorProfileScreen() {
             </View>
           </View>
         </View>
+
+        {/* Верификация */}
+        {(profile as any).is_verified ? (
+          <View style={[styles.card, styles.verifiedCard]}>
+            <ShieldCheck size={28} color={COLORS.success} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.verifiedTitle}>Профиль верифицирован</Text>
+              {(profile as any).verified_at && (
+                <Text style={styles.verifiedDate}>
+                  с {format(new Date((profile as any).verified_at), 'd MMMM yyyy', { locale: ruLocale })}
+                </Text>
+              )}
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.verifyCard} onPress={() => router.push('/verification')}>
+            <ShieldCheck size={24} color={COLORS.primary} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.verifyTitle}>Подать на верификацию</Text>
+              <Text style={styles.verifyHint}>Бейдж «Верифицирован» в каталоге повысит доверие учеников</Text>
+            </View>
+            <ChevronRight size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.label}>Имя</Text>
@@ -209,4 +236,10 @@ const styles = StyleSheet.create({
   saveText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   logoutBtn: { height: 48, backgroundColor: COLORS.white, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.error + '40' },
   logoutText: { color: COLORS.error, fontSize: 15, fontWeight: '600' },
+  verifiedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.success + '15', borderWidth: 1, borderColor: COLORS.success + '40' },
+  verifiedTitle: { fontSize: 15, fontWeight: '700', color: COLORS.success },
+  verifiedDate: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  verifyCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: COLORS.primary + '40' },
+  verifyTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  verifyHint: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
 });

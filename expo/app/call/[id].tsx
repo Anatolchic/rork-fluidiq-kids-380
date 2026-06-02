@@ -1,19 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Alert, Animated, Easing, FlatList, TextInput, Modal, Pressable } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Mic, MicOff, Video as VideoOn, VideoOff, PhoneOff, RefreshCw, PenTool, Eraser, Trash2, X, Monitor, MonitorOff } from 'lucide-react-native';
+import { Mic, MicOff, Video as VideoOn, VideoOff, PhoneOff, RefreshCw, PenTool, Eraser, Trash2, X, Monitor, MonitorOff, Hand, Smile, MessageSquare, Send, PictureInPicture2, Sparkles } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
 import { getTurnIceServers, PEER_CONFIG_DEFAULTS, applyBitrateLimit } from '../../lib/webrtc';
+import type { Message } from '../../lib/types';
 
 const RECONNECT_AFTER_MS = 3000;
 
 type SignalType = 'offer' | 'answer' | 'ice' | 'bye' | 'stroke' | 'clear';
 type Stroke = { id: string; color: string; size: number; points: { x: number; y: number }[]; userId: string };
+type FloatingReaction = { id: string; emoji: string; x: number; anim: Animated.Value };
 
 const PALETTE = ['#ffffff', '#ff5252', '#ffd54f', '#66bb6a', '#4dabf5'];
 const SIZES = [3, 7];
+const REACTIONS = ['❤️', '🔥', '👍', '😂', '🎉', '👏'];
 
 export default function CallScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -29,6 +32,34 @@ export default function CallScreen() {
   const [size, setSize] = useState(SIZES[0]);
   const [elapsed, setElapsed] = useState(0);
   const [quality, setQuality] = useState<'excellent' | 'good' | 'fair' | 'poor' | 'unknown'>('unknown');
+
+  // Reactions
+  const [reactionsOpen, setReactionsOpen] = useState(false);
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+
+  // Hand raise
+  const [handRaised, setHandRaised] = useState(false);
+  const [peerHandRaised, setPeerHandRaised] = useState(false);
+  const handPulse = useRef(new Animated.Value(1)).current;
+  const peerHandPulse = useRef(new Animated.Value(1)).current;
+
+  // PiP
+  const [pipActive, setPipActive] = useState(false);
+  const pipSupported = typeof document !== 'undefined' && (document as any).pictureInPictureEnabled;
+
+  // Chat panel
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatRoomId, setChatRoomId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [chatText, setChatText] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const chatChannelRef = useRef<any>(null);
+  const chatListRef = useRef<FlatList<Message>>(null);
+  const chatOpenRef = useRef(false);
+
+  // Virtual background blur
+  const [bgBlur, setBgBlur] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const statsTimerRef = useRef<any>(null);
@@ -158,6 +189,14 @@ export default function CallScreen() {
       ch.on('broadcast', { event: 'signal' }, ({ payload }: any) => handleSignal(payload))
         .on('broadcast', { event: 'stroke' }, ({ payload }: any) => onRemoteStroke(payload as Stroke))
         .on('broadcast', { event: 'clear' }, () => { strokesRef.current = []; clearCanvas(); })
+        .on('broadcast', { event: 'reaction' }, ({ payload }: any) => {
+          if (!session || payload?.from === session.user.id) return;
+          if (payload?.emoji) spawnFloatingReaction(payload.emoji);
+        })
+        .on('broadcast', { event: 'hand' }, ({ payload }: any) => {
+          if (!session || payload?.from === session.user.id) return;
+          setPeerHandRaised(!!payload?.raised);
+        })
         .on('presence', { event: 'sync' }, () => {
           const state = ch.presenceState();
           const others = Object.keys(state).filter(k => k !== session!.user.id);
@@ -305,6 +344,126 @@ export default function CallScreen() {
     channelRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
   }
 
+  // ===== Reactions =====
+  function spawnFloatingReaction(emoji: string) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const x = Math.round(20 + Math.random() * 60); // 20-80% width
+    const anim = new Animated.Value(0);
+    const item: FloatingReaction = { id, emoji, x, anim };
+    setFloatingReactions(prev => [...prev, item]);
+    Animated.timing(anim, { toValue: 1, duration: 2000, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(() => {
+      setFloatingReactions(prev => prev.filter(r => r.id !== id));
+    });
+  }
+  function sendReaction(emoji: string) {
+    if (!session) return;
+    spawnFloatingReaction(emoji);
+    channelRef.current?.send({ type: 'broadcast', event: 'reaction', payload: { from: session.user.id, emoji } });
+    setReactionsOpen(false);
+  }
+
+  // ===== Hand raise =====
+  function toggleHand() {
+    if (!session) return;
+    const next = !handRaised;
+    setHandRaised(next);
+    channelRef.current?.send({ type: 'broadcast', event: 'hand', payload: { from: session.user.id, raised: next } });
+  }
+
+  // Pulse animation for raised hands
+  useEffect(() => {
+    if (!handRaised) { handPulse.setValue(1); return; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(handPulse, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+      Animated.timing(handPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [handRaised, handPulse]);
+  useEffect(() => {
+    if (!peerHandRaised) { peerHandPulse.setValue(1); return; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(peerHandPulse, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+      Animated.timing(peerHandPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [peerHandRaised, peerHandPulse]);
+
+  // ===== Picture-in-Picture =====
+  async function togglePip() {
+    if (typeof document === 'undefined' || !(document as any).pictureInPictureEnabled) {
+      Alert.alert('PiP не поддерживается', 'Браузер не поддерживает Picture-in-Picture');
+      return;
+    }
+    const v = remoteVideoRef.current as any;
+    if (!v) return;
+    try {
+      if ((document as any).pictureInPictureElement) {
+        await (document as any).exitPictureInPicture();
+        setPipActive(false);
+      } else {
+        await v.requestPictureInPicture();
+        setPipActive(true);
+        v.addEventListener('leavepictureinpicture', () => setPipActive(false), { once: true });
+      }
+    } catch (e: any) {
+      console.warn('pip err', e);
+    }
+  }
+
+  // ===== Chat panel =====
+  useEffect(() => {
+    if (!bookingId) return;
+    (async () => {
+      const { data } = await supabase.from('chat_rooms').select('id').eq('booking_id', bookingId).maybeSingle();
+      if (data?.id) setChatRoomId(data.id as string);
+    })();
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (!chatRoomId) return;
+    (async () => {
+      const { data } = await supabase.from('messages').select('*').eq('room_id', chatRoomId).order('created_at', { ascending: true }).limit(200);
+      setChatMessages((data || []) as Message[]);
+    })();
+    const ch = supabase
+      .channel(`call-chat:${chatRoomId}`, { config: { broadcast: { ack: false } } })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${chatRoomId}` }, (payload: any) => {
+        const m = payload.new as Message;
+        setChatMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
+        if (!chatOpenRef.current && session && m.sender_id !== session.user.id) {
+          setUnreadCount(c => c + 1);
+        }
+      })
+      .subscribe();
+    chatChannelRef.current = ch;
+    return () => { supabase.removeChannel(ch); };
+  }, [chatRoomId, session?.user.id]);
+
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+    if (chatOpen) setUnreadCount(0);
+  }, [chatOpen]);
+
+  useEffect(() => {
+    if (chatOpen && chatMessages.length > 0) {
+      setTimeout(() => chatListRef.current?.scrollToEnd({ animated: true }), 80);
+    }
+  }, [chatOpen, chatMessages.length]);
+
+  async function sendChatMessage() {
+    if (!chatText.trim() || !session || !chatRoomId) return;
+    const content = chatText.trim();
+    setChatText('');
+    setChatSending(true);
+    const { error } = await supabase.from('messages').insert({
+      room_id: chatRoomId, sender_id: session.user.id, content, type: 'text',
+    });
+    setChatSending(false);
+    if (error) Alert.alert('Не отправлено', error.message);
+  }
+
   // ===== Controls =====
   function toggleMic() {
     const tracks = localStreamRef.current?.getAudioTracks() || [];
@@ -361,9 +520,16 @@ export default function CallScreen() {
   }
   function teardown() {
     try { channelRef.current?.unsubscribe(); } catch {}
+    try { if (chatChannelRef.current) supabase.removeChannel(chatChannelRef.current); } catch {}
     try { pcRef.current?.close(); } catch {}
     try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+    try {
+      if (typeof document !== 'undefined' && (document as any).pictureInPictureElement) {
+        (document as any).exitPictureInPicture().catch(() => {});
+      }
+    } catch {}
     pcRef.current = null; localStreamRef.current = null; channelRef.current = null;
+    chatChannelRef.current = null;
     initiatedRef.current = false;
   }
 
@@ -386,12 +552,23 @@ export default function CallScreen() {
           <View style={styles.remoteCorner}>
             {/* @ts-ignore */}
             <video ref={(r: any) => (remoteVideoRef.current = r)} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+            {peerHandRaised && (
+              <Animated.View style={[styles.handBadge, { transform: [{ scale: peerHandPulse }] }]}>
+                <Text style={styles.handBadgeText}>✋</Text>
+              </Animated.View>
+            )}
           </View>
         </View>
       ) : (
         <View style={styles.remoteWrap}>
           {/* @ts-ignore */}
           <video ref={(r: any) => (remoteVideoRef.current = r)} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+          {peerHandRaised && (
+            <Animated.View style={[styles.handBadgeLarge, { transform: [{ scale: peerHandPulse }] }]}>
+              <Text style={styles.handBadgeLargeText}>✋</Text>
+              <Text style={styles.handBadgeLabel}>Поднял руку</Text>
+            </Animated.View>
+          )}
           {status !== 'connected' && (
             <View style={styles.statusOverlay} pointerEvents="none">
               {status === 'preparing' && <><ActivityIndicator color="#fff" size="large" /><Text style={styles.statusText}>Подготовка…</Text></>}
@@ -417,8 +594,16 @@ export default function CallScreen() {
       {!boardOn && (
         <View style={styles.localWrap}>
           {/* @ts-ignore */}
-          <video ref={(r: any) => (localVideoRef.current = r)} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#222', transform: 'scaleX(-1)' }} />
+          <video ref={(r: any) => (localVideoRef.current = r)} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#222', transform: 'scaleX(-1)', filter: bgBlur ? 'blur(10px)' : 'none' }} />
+          {bgBlur && (
+            <View pointerEvents="none" style={styles.bgBlurOverlay} />
+          )}
           {!camOn && <View style={styles.localOff}><Text style={styles.localOffText}>Камера выкл.</Text></View>}
+          {handRaised && (
+            <Animated.View style={[styles.handBadge, { transform: [{ scale: handPulse }] }]}>
+              <Text style={styles.handBadgeText}>✋</Text>
+            </Animated.View>
+          )}
         </View>
       )}
 
@@ -468,6 +653,83 @@ export default function CallScreen() {
         </View>
       )}
 
+      {/* Floating reactions overlay */}
+      {floatingReactions.length > 0 && (
+        <View pointerEvents="none" style={styles.reactionsOverlay}>
+          {floatingReactions.map(r => {
+            const translateY = r.anim.interpolate({ inputRange: [0, 1], outputRange: [0, -200] });
+            const opacity = r.anim.interpolate({ inputRange: [0, 0.8, 1], outputRange: [1, 1, 0] });
+            const scale = r.anim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 1.2, 1] });
+            return (
+              <Animated.View key={r.id} style={[styles.floatReact, { left: `${r.x}%`, transform: [{ translateY }, { scale }], opacity }]}>
+                <Text style={styles.floatReactEmoji}>{r.emoji}</Text>
+              </Animated.View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Reactions picker modal */}
+      <Modal visible={reactionsOpen} transparent animationType="fade" onRequestClose={() => setReactionsOpen(false)}>
+        <Pressable style={styles.reactionsBackdrop} onPress={() => setReactionsOpen(false)}>
+          <View style={styles.reactionsPopover}>
+            {REACTIONS.map(emoji => (
+              <TouchableOpacity key={emoji} style={styles.reactionItem} onPress={() => sendReaction(emoji)}>
+                <Text style={styles.reactionEmoji}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Chat panel */}
+      {chatOpen && (
+        <View style={styles.chatPanel}>
+          <View style={styles.chatHeader}>
+            <Text style={styles.chatHeaderTitle}>Чат урока</Text>
+            <TouchableOpacity onPress={() => setChatOpen(false)} style={styles.chatCloseBtn}>
+              <X size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            ref={chatListRef}
+            data={chatMessages}
+            keyExtractor={m => m.id}
+            contentContainerStyle={styles.chatList}
+            renderItem={({ item }) => {
+              const isOwn = item.sender_id === session?.user.id;
+              return (
+                <View style={[styles.chatMsgRow, isOwn ? styles.chatMsgRowOwn : styles.chatMsgRowPeer]}>
+                  <View style={[styles.chatBubble, isOwn ? styles.chatBubbleOwn : styles.chatBubblePeer]}>
+                    {item.type === 'image' && item.file_url ? (
+                      <Text style={styles.chatBubbleText}>📷 Фото (откройте основной чат)</Text>
+                    ) : (
+                      <Text style={styles.chatBubbleText}>{item.content}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            }}
+            ListEmptyComponent={<Text style={styles.chatEmpty}>Пока сообщений нет</Text>}
+          />
+          <View style={styles.chatInputWrap}>
+            <TextInput
+              style={styles.chatInput}
+              value={chatText}
+              onChangeText={setChatText}
+              placeholder="Сообщение…"
+              placeholderTextColor="#ffffff66"
+              multiline
+              maxLength={2000}
+              editable={!chatSending}
+            />
+            <TouchableOpacity style={styles.chatSendBtn} onPress={sendChatMessage} disabled={!chatText.trim() || chatSending}>
+              {chatSending ? <ActivityIndicator color="#fff" size="small" /> : <Send size={18} color="#fff" />}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Controls */}
       <View style={styles.controls}>
         <TouchableOpacity style={[styles.ctrlBtn, !micOn && styles.ctrlBtnOff]} onPress={toggleMic}>
@@ -478,6 +740,28 @@ export default function CallScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={[styles.ctrlBtn, screenOn && styles.ctrlBtnPrimary]} onPress={toggleScreenShare}>
           {screenOn ? <MonitorOff size={22} color="#fff" /> : <Monitor size={22} color="#fff" />}
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.ctrlBtn, handRaised && styles.ctrlBtnPrimary]} onPress={toggleHand}>
+          <Hand size={22} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.ctrlBtn, reactionsOpen && styles.ctrlBtnPrimary]} onPress={() => setReactionsOpen(true)}>
+          <Smile size={22} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.ctrlBtn, chatOpen && styles.ctrlBtnPrimary]} onPress={() => setChatOpen(o => !o)}>
+          <MessageSquare size={22} color="#fff" />
+          {unreadCount > 0 && !chatOpen && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? '9+' : String(unreadCount)}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        {pipSupported && (
+          <TouchableOpacity style={[styles.ctrlBtn, pipActive && styles.ctrlBtnPrimary]} onPress={togglePip}>
+            <PictureInPicture2 size={22} color="#fff" />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.ctrlBtn, bgBlur && styles.ctrlBtnPrimary]} onPress={() => setBgBlur(b => !b)}>
+          <Sparkles size={22} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.hangupBtn} onPress={hangup}>
           <PhoneOff size={26} color="#fff" />
@@ -534,4 +818,45 @@ const styles = StyleSheet.create({
   unsupportedSub: { color: '#ffffffaa', fontSize: 14, textAlign: 'center', lineHeight: 20 },
   closeBtn: { marginTop: 24, paddingHorizontal: 28, paddingVertical: 14, backgroundColor: '#ffffff20', borderRadius: 12, borderWidth: 1, borderColor: '#ffffff40' },
   closeText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+
+  // Reactions
+  reactionsOverlay: { position: 'absolute', left: 0, right: 0, bottom: 100, top: 100, pointerEvents: 'none' as any },
+  floatReact: { position: 'absolute', bottom: 0 },
+  floatReactEmoji: { fontSize: 42 },
+  reactionsBackdrop: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', backgroundColor: '#00000066', paddingBottom: 120 },
+  reactionsPopover: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, backgroundColor: '#1a1a2eee', borderRadius: 24, borderWidth: 1, borderColor: '#ffffff20' },
+  reactionItem: { width: 48, height: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 24 },
+  reactionEmoji: { fontSize: 28 },
+
+  // Hand badges
+  handBadge: { position: 'absolute', top: 8, left: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: '#ffd54fee', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
+  handBadgeText: { fontSize: 16 },
+  handBadgeLarge: { position: 'absolute', top: 70, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#ffd54fee', borderRadius: 20, borderWidth: 2, borderColor: '#fff' },
+  handBadgeLargeText: { fontSize: 20 },
+  handBadgeLabel: { color: '#0c0c1f', fontSize: 13, fontWeight: '700' },
+
+  // Background blur overlay (extra effect)
+  bgBlurOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#00000022', backdropFilter: 'blur(6px)' as any },
+
+  // Unread badge on chat button
+  unreadBadge: { position: 'absolute', top: -4, right: -4, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: '#ff3b3b', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#0c0c1f' },
+  unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+
+  // Chat panel
+  chatPanel: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 320, backgroundColor: '#0c0c1fee', borderLeftWidth: 1, borderLeftColor: '#ffffff20', flexDirection: 'column', maxWidth: '100%' as any },
+  chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ffffff15' },
+  chatHeaderTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  chatCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#ffffff15', justifyContent: 'center', alignItems: 'center' },
+  chatList: { padding: 12, gap: 6, flexGrow: 1 },
+  chatMsgRow: { flexDirection: 'row', marginVertical: 2 },
+  chatMsgRowOwn: { justifyContent: 'flex-end' },
+  chatMsgRowPeer: { justifyContent: 'flex-start' },
+  chatBubble: { maxWidth: '85%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 },
+  chatBubbleOwn: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
+  chatBubblePeer: { backgroundColor: '#ffffff18', borderBottomLeftRadius: 4 },
+  chatBubbleText: { color: '#fff', fontSize: 14, lineHeight: 19 },
+  chatEmpty: { color: '#ffffff66', fontSize: 13, textAlign: 'center', marginTop: 40 },
+  chatInputWrap: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: '#ffffff15' },
+  chatInput: { flex: 1, minHeight: 38, maxHeight: 100, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#ffffff15', borderRadius: 12, color: '#fff', fontSize: 14 },
+  chatSendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
 });

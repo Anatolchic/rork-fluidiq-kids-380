@@ -1,318 +1,171 @@
-# Welcome to your Rork app
+# Репетиторы — мобильное и веб-приложение
 
-## Project info
+Платформа для поиска репетиторов и проведения онлайн-уроков. iOS / Android / Web из одной кодовой базы (Expo + React Native + expo-router).
 
-This is a native cross-platform mobile app created with [Rork](https://rork.com)
+## Что работает
 
-**Platform**: Native iOS & Android app, exportable to web
-**Framework**: Expo Router + React Native
+- **Прод:** `https://repetitory-app.ru` (лендинг) и `https://web.repetitory-app.ru` (PWA web-сборка)
+- **Supabase self-hosted:** `https://supabase.repetitory-app.ru` (API + Auth + Storage + Realtime + Edge Functions)
+- **Сервер:** Beget VPS `5.35.86.239` (чистый российский IP — критично, см. `memory/project_repetitory.md`)
+- **DNS:** все домены A-записями напрямую на `5.35.86.239` (без Cloudflare proxy — DPI режет грязные IP)
+- **Reverse-proxy:** Caddy с auto-SSL (Let's Encrypt) для всех поддоменов
+- **Мобильная сборка:** через EAS, bundle id `ru.repetitory.app`, репо `Anatolchic/rork-fluidiq-kids-380`
 
-## How can I edit this code?
+## Стек
 
-There are several ways of editing your native mobile application.
+- **Frontend:** Expo SDK 54, React Native, expo-router (file-based), TypeScript
+- **State:** zustand (`stores/auth.ts`)
+- **UI:** react-native-svg, lucide-react-native, date-fns + ru locale
+- **Backend:** Supabase self-hosted (Postgres 15 + GoTrue + PostgREST + Realtime + Storage + Edge Functions on Deno)
+- **Платежи:** T-Bank (Tinkoff) Acquiring — пополнение баланса репетиторов, webhook `tbank-webhook`
+- **WebRTC:** P2P звонки через `expo-webrtc`, TURN-сервер на `5.35.87.176`
 
-### **Use Rork**
+## Архитектура
 
-Simply visit [rork.com](https://rork.com) and prompt to build your app with AI.
+### Роли
+- `admin` — админ-панель, модерация
+- `tutor` — публикуется в каталоге, ведёт уроки, получает деньги от учеников напрямую, платит платформе комиссию с баланса
+- `student` — ищет репетитора, бронирует, оценивает
 
-Changes made via Rork will be committed automatically to this GitHub repo.
+Одна `auth.users` запись — одна роль. Профили в отдельных таблицах: `tutor_profiles`, `student_profiles`, `user_roles`.
 
-Whenever you make a change in your local code editor and push it to GitHub, it will be also reflected in Rork.
+### Деньги в копейках
+Все суммы в БД хранятся в `*_kopecks INT`. Отображение: `${(value/100).toLocaleString("ru")} ₽`.
 
-### **Use your preferred code editor**
+### Структура файлов
 
-If you want to work locally using your own code editor, you can clone this repo and push changes. Pushed changes will also be reflected in Rork.
+```
+expo/
+├── app/                              # Expo Router (file-based)
+│   ├── (admin)/                      # Админ-панель (sidebar на desktop, Tabs на mobile)
+│   │   ├── _layout.tsx               # Layout с проверкой role='admin'
+│   │   ├── index.tsx                 # Дашборд: метрики, графики
+│   │   ├── users.tsx                 # Поиск пользователей по role
+│   │   ├── tutors.tsx                # Список репетиторов
+│   │   ├── bookings.tsx              # Все сделки
+│   │   ├── payments.tsx              # Платежи / выплаты
+│   │   ├── tickets.tsx               # Обращения в поддержку
+│   │   ├── verifications.tsx         # Очередь модерации документов
+│   │   ├── audit.tsx                 # Журнал admin_audit_log
+│   │   ├── settings.tsx              # app_settings (цены, T-Bank, test_mode)
+│   │   └── profile.tsx
+│   ├── (tutor)/                      # Кабинет репетитора
+│   ├── (student)/                    # Кабинет ученика
+│   ├── (auth)/                       # Логин / регистрация / восстановление
+│   ├── admin-user/[id].tsx           # Карточка пользователя
+│   ├── booking/                      # Сделки
+│   ├── call/                         # Видеозвонок (WebRTC)
+│   ├── chat/                         # Чат
+│   ├── review/                       # Отзывы
+│   ├── tutor/                        # Публичный профиль репетитора
+│   ├── tutor-setup.tsx               # Онбординг репетитора
+│   ├── verification.tsx              # Подача документов на верификацию
+│   └── support.tsx                   # Связь с поддержкой
+├── components/
+│   ├── AvatarPicker.tsx              # Выбор/смена аватара (Supabase Storage)
+│   ├── CalendarMonth.tsx             # Месячный календарь со слотами
+│   ├── NotificationBell.tsx          # Колокольчик + список уведомлений
+│   └── SettingsSection.tsx           # Переиспользуемая карточка настроек
+├── lib/
+│   ├── supabase.ts                   # Клиент (URL + anon из env)
+│   ├── constants.ts                  # COLORS, SUBJECTS, LEVELS, длительности
+│   ├── errors.ts                     # ru() — перевод ошибок Postgres/Auth
+│   ├── responsive.ts                 # useResponsive() — breakpoints + maxWidth
+│   ├── bookings.ts                   # loadBookings/attachProfiles (FK на auth.users)
+│   ├── notifications.ts              # Локальные уведомления
+│   ├── pagination.ts                 # Cursor pagination
+│   ├── tbank.ts                      # Helpers для T-Bank
+│   ├── biometric.ts                  # Face/Touch ID (Expo LocalAuth)
+│   ├── webrtc.ts                     # Сигналинг + TURN
+│   ├── Chart.tsx                     # SVG-графики
+│   └── Skeleton.tsx                  # Скелетоны
+├── stores/
+│   └── auth.ts                       # zustand: session, profile, role
+└── supabase/
+    ├── migrations/                   # SQL миграции (хронология ниже)
+    └── functions/
+        └── calendar-ics/             # ICS-экспорт уроков
+```
 
-If you are new to coding and unsure which editor to use, we recommend Cursor. If you're familiar with terminals, try Claude Code.
+## Ключевые миграции
 
-The only requirement is having Node.js & Bun installed - [install Node.js with nvm](https://github.com/nvm-sh/nvm) and [install Bun](https://bun.sh/docs/installation)
+| Файл | Что в нём |
+|---|---|
+| `20260531_admin_policies_functions.sql` | RLS, is_admin(), admin_list_users, базовые RPC |
+| `20260531_triggers_and_pg_cron.sql` | pg_cron задачи (напоминалки, авто-завершение) |
+| `20260531_chat_read_admin_charts.sql` | Чат + read receipts + графики |
+| `20260531_chat_attachments_bucket.sql` | Storage bucket для вложений |
+| `20260531_avatars_bucket_and_dev_topup.sql` | Storage bucket аватарок + dev-пополнение баланса |
+| `20260531_support_tickets.sql` | support_tickets + сообщения |
+| `20260601_notification_prefs.sql` | Настройки уведомлений |
+| `20260602_notifications_and_avatars.sql` | notifications, mark_*_read RPC, аватары |
+| `20260602_chat_improvements.sql` | Улучшения чата |
+| `20260602_telegram_link.sql` | Привязка Telegram |
+| `20260602_big_features.sql` | **Главная миграция.** admin_audit_log, promo_codes + apply_promo_code, tutor_subscriptions + buy_pro_subscription/is_pro_tutor, tutor_certifications + request_verification/admin_review_certification, tutor_profiles.is_verified/balance/lesson_break_minutes, tutor_availability.specific_date/price_per_hour_override, booking_series + bookings.series_id/is_intro, student_profiles.birth_date/parent_*, user_roles.banned_at/deleted_at, app_settings.verification_price_kopecks/pro_subscription_price_kopecks |
 
-Follow these steps:
+## Ключевые БД-объекты
 
+- `app_settings` (single-row): `lesson_commission`, `min_balance_to_start`, `tbank_*`, `test_mode`, `verification_price_kopecks`, `pro_subscription_price_kopecks`
+- `admin_audit_log` + RPC `log_admin_action(action, table, target, payload)`
+- `promo_codes` / `promo_code_uses` + RPC `apply_promo_code(code, base_kopecks, target)`
+- `tutor_subscriptions` + RPC `buy_pro_subscription(months)`, `is_pro_tutor(uid)`
+- `tutor_certifications` (kind: passport/diploma/certificate/other; status: draft/pending/approved/rejected) + RPC `request_verification(cert_ids[])`, `admin_review_certification(id, approve, reason)`
+- `notifications` + RPC `mark_notification_read`, `mark_all_read`
+- `booking_series` (рекурренты) → `bookings.series_id`
+- `tutor_availability.specific_date` (точечные слоты вне обычного расписания) + `price_per_hour_override`
+
+## Связи
+
+- **T-Bank Acquiring** → webhook `https://supabase.repetitory-app.ru/functions/v1/tbank-webhook`
+- **Telegram** → привязка через `auth_link_telegram` (см. `20260602_telegram_link.sql`)
+- **TURN** → `turn:5.35.87.176:3478` (для WebRTC)
+- **Repo:** `github.com/Anatolchic/rork-fluidiq-kids-380` (приватный)
+- **VPS:** `root@5.35.86.239` (Beget); vault `repetitory-prod`
+
+## Деплой
+
+### Web
 ```bash
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-bun i
-
-# Step 4: Start the instant web preview of your Rork app in your browser, with auto-reloading of your changes
-bun run start-web
-
-# Step 5: Start iOS preview
-# Option A (recommended):
-bun run start  # then press "i" in the terminal to open iOS Simulator
-# Option B (if supported by your environment):
-bun run start -- --ios
+bun run build:web              # Expo Web → dist/
+# деплой dist/ на VPS под Caddy, домен web.repetitory-app.ru
 ```
 
-### **Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-## What technologies are used for this project?
-
-This project is built with the most popular native mobile cross-platform technical stack:
-
-- **React Native** - Cross-platform native mobile development framework created by Meta and used for Instagram, Airbnb, and lots of top apps in the App Store
-- **Expo** - Extension of React Native + platform used by Discord, Shopify, Coinbase, Telsa, Starlink, Eightsleep, and more
-- **Expo Router** - File-based routing system for React Native with support for web, server functions and SSR
-- **TypeScript** - Type-safe JavaScript
-- **React Query** - Server state management
-- **Lucide React Native** - Beautiful icons
-
-## How can I test my app?
-
-### **On your phone (Recommended)**
-
-1. **iOS**: Download the [Rork app from the App Store](https://apps.apple.com/app/rork) or [Expo Go](https://apps.apple.com/app/expo-go/id982107779)
-2. **Android**: Download the [Expo Go app from Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent)
-3. Run `bun run start` and scan the QR code from your development server
-
-### **In your browser**
-
-Run `bun start-web` to test in a web browser. Note: The browser preview is great for quick testing, but some native features may not be available.
-
-### **iOS Simulator / Android Emulator**
-
-You can test Rork apps in Expo Go or Rork iOS app. You don't need XCode or Android Studio for most features.
-
-**When do you need Custom Development Builds?**
-
-- Native authentication (Face ID, Touch ID, Apple Sign In)
-- In-app purchases and subscriptions
-- Push notifications
-- Custom native modules
-
-Learn more: [Expo Custom Development Builds Guide](https://docs.expo.dev/develop/development-builds/introduction/)
-
-If you have XCode (iOS) or Android Studio installed:
-
+### Mobile (EAS)
 ```bash
-# iOS Simulator
-bun run start -- --ios
-
-# Android Emulator
-bun run start -- --android
+eas build --platform ios       # → TestFlight
+eas build --platform android   # → Internal Track
+eas submit --platform ios
+eas submit --platform android
 ```
 
-## How can I deploy this project?
+Bundle: `ru.repetitory.app`. Apple/Google credentials в EAS.
 
-### **Publish to App Store (iOS)**
-
-1. **Install EAS CLI**:
-
-   ```bash
-   bun i -g @expo/eas-cli
-   ```
-
-2. **Configure your project**:
-
-   ```bash
-   eas build:configure
-   ```
-
-3. **Build for iOS**:
-
-   ```bash
-   eas build --platform ios
-   ```
-
-4. **Submit to App Store**:
-   ```bash
-   eas submit --platform ios
-   ```
-
-For detailed instructions, visit [Expo's App Store deployment guide](https://docs.expo.dev/submit/ios/).
-
-### **Publish to Google Play (Android)**
-
-1. **Build for Android**:
-
-   ```bash
-   eas build --platform android
-   ```
-
-2. **Submit to Google Play**:
-   ```bash
-   eas submit --platform android
-   ```
-
-For detailed instructions, visit [Expo's Google Play deployment guide](https://docs.expo.dev/submit/android/).
-
-### **Publish as a Website**
-
-Your React Native app can also run on the web:
-
-1. **Build for web**:
-
-   ```bash
-   eas build --platform web
-   ```
-
-2. **Deploy with EAS Hosting**:
-   ```bash
-   eas hosting:configure
-   eas hosting:deploy
-   ```
-
-Alternative web deployment options:
-
-- **Vercel**: Deploy directly from your GitHub repository
-- **Netlify**: Connect your GitHub repo to Netlify for automatic deployments
-
-## App Features
-
-This template includes:
-
-- **Cross-platform compatibility** - Works on iOS, Android, and Web
-- **File-based routing** with Expo Router
-- **Tab navigation** with customizable tabs
-- **Modal screens** for overlays and dialogs
-- **TypeScript support** for better development experience
-- **Async storage** for local data persistence
-- **Vector icons** with Lucide React Native
-
-## Project Structure
-
-```
-├── app/                    # App screens (Expo Router)
-│   ├── (tabs)/            # Tab navigation screens
-│   │   ├── _layout.tsx    # Tab layout configuration
-│   │   └── index.tsx      # Home tab screen
-│   ├── _layout.tsx        # Root layout
-│   ├── modal.tsx          # Modal screen example
-│   └── +not-found.tsx     # 404 screen
-├── assets/                # Static assets
-│   └── images/           # App icons and images
-├── constants/            # App constants and configuration
-├── app.json             # Expo configuration
-├── package.json         # Dependencies and scripts
-└── tsconfig.json        # TypeScript configuration
-```
-
-## Custom Development Builds
-
-For advanced native features, you'll need to create a Custom Development Build instead of using Expo Go.
-
-### **When do you need a Custom Development Build?**
-
-- **Native Authentication**: Face ID, Touch ID, Apple Sign In, Google Sign In
-- **In-App Purchases**: App Store and Google Play subscriptions
-- **Advanced Native Features**: Third-party SDKs, platform-specifc features (e.g. Widgets on iOS)
-- **Background Processing**: Background tasks, location tracking
-
-### **Creating a Custom Development Build**
-
+### Supabase
 ```bash
-# Install EAS CLI
-bun i -g @expo/eas-cli
-
-# Configure your project for development builds
-eas build:configure
-
-# Create a development build for your device
-eas build --profile development --platform ios
-eas build --profile development --platform android
-
-# Install the development build on your device and start developing
-bun start --dev-client
+# Локально → продакшен
+supabase db push               # миграции
+supabase functions deploy <name>
 ```
 
-**Learn more:**
+## Окружение (env)
 
-- [Development Builds Introduction](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Creating Development Builds](https://docs.expo.dev/develop/development-builds/create-a-build/)
-- [Installing Development Builds](https://docs.expo.dev/develop/development-builds/installation/)
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://supabase.repetitory-app.ru
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-## Advanced Features
+Сервисные ключи (service_role, T-Bank secrets) — только на VPS, через env Edge Functions.
 
-### **Add a Database**
+## Что НЕ сделано / следующие шаги
 
-Integrate with backend services:
+- Push-уведомления (Expo Notifications) — каркас есть, нужен прод-проект FCM/APNs
+- iOS submit — нужны APN-сертификаты
+- Партнёрская программа репетиторов
+- Видеозапись уроков (сейчас только live-звонок)
 
-- **Supabase** - PostgreSQL database with real-time features
-- **Firebase** - Google's mobile development platform
-- **Custom API** - Connect to your own backend
+## Уроки
 
-### **Add Authentication**
-
-Implement user authentication:
-
-**Basic Authentication (works in Expo Go):**
-
-- **Expo AuthSession** - OAuth providers (Google, Facebook, Apple) - [Guide](https://docs.expo.dev/guides/authentication/)
-- **Supabase Auth** - Email/password and social login - [Integration Guide](https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native)
-- **Firebase Auth** - Comprehensive authentication solution - [Setup Guide](https://docs.expo.dev/guides/using-firebase/)
-
-**Native Authentication (requires Custom Development Build):**
-
-- **Apple Sign In** - Native Apple authentication - [Implementation Guide](https://docs.expo.dev/versions/latest/sdk/apple-authentication/)
-- **Google Sign In** - Native Google authentication - [Setup Guide](https://docs.expo.dev/guides/google-authentication/)
-
-### **Add Push Notifications**
-
-Send notifications to your users:
-
-- **Expo Notifications** - Cross-platform push notifications
-- **Firebase Cloud Messaging** - Advanced notification features
-
-### **Add Payments**
-
-Monetize your app:
-
-**Web & Credit Card Payments (works in Expo Go):**
-
-- **Stripe** - Credit card payments and subscriptions - [Expo + Stripe Guide](https://docs.expo.dev/guides/using-stripe/)
-- **PayPal** - PayPal payments integration - [Setup Guide](https://developer.paypal.com/docs/checkout/mobile/react-native/)
-
-**Native In-App Purchases (requires Custom Development Build):**
-
-- **RevenueCat** - Cross-platform in-app purchases and subscriptions - [Expo Integration Guide](https://www.revenuecat.com/docs/expo)
-- **Expo In-App Purchases** - Direct App Store/Google Play integration - [Implementation Guide](https://docs.expo.dev/versions/latest/sdk/in-app-purchases/)
-
-**Paywall Optimization:**
-
-- **Superwall** - Paywall A/B testing and optimization - [React Native SDK](https://docs.superwall.com/docs/react-native)
-- **Adapty** - Mobile subscription analytics and paywalls - [Expo Integration](https://docs.adapty.io/docs/expo)
-
-## I want to use a custom domain - is that possible?
-
-For web deployments, you can use custom domains with:
-
-- **EAS Hosting** - Custom domains available on paid plans
-- **Netlify** - Free custom domain support
-- **Vercel** - Custom domains with automatic SSL
-
-For mobile apps, you'll configure your app's deep linking scheme in `app.json`.
-
-## Troubleshooting
-
-### **App not loading on device?**
-
-1. Make sure your phone and computer are on the same WiFi network
-2. Try using tunnel mode: `bun start -- --tunnel`
-3. Check if your firewall is blocking the connection
-
-### **Build failing?**
-
-1. Clear your cache: `bunx expo start --clear`
-2. Delete `node_modules` and reinstall: `rm -rf node_modules && bun install`
-3. Check [Expo's troubleshooting guide](https://docs.expo.dev/troubleshooting/build-errors/)
-
-### **Need help with native features?**
-
-- Check [Expo's documentation](https://docs.expo.dev/) for native APIs
-- Browse [React Native's documentation](https://reactnative.dev/docs/getting-started) for core components
-- Visit [Rork's FAQ](https://rork.com/faq) for platform-specific questions
-
-## About Rork
-
-Rork builds fully native mobile apps using React Native and Expo - the same technology stack used by Discord, Shopify, Coinbase, Instagram, and nearly 30% of the top 100 apps on the App Store.
-
-Your Rork app is production-ready and can be published to both the App Store and Google Play Store. You can also export your app to run on the web, making it truly cross-platform.
+- **Чистый RU origin-IP** обязателен — DPI режет «грязные» IP. Никаких Cloudflare proxy для api/auth/storage. См. `memory/project_repetitory.md`.
+- **FK bookings на auth.users** — не работает PostgREST embed `tutor:tutor_profiles!tutor_id(*)`. Подгружаем профили отдельным запросом через `lib/bookings.attachProfiles()`.
+- **Цены в копейках везде** — никаких float, никаких `.toFixed(2)` при сохранении.
+- **`ru(error)`** в каждом Alert — иначе пользователь видит англоязычные тех-сообщения.

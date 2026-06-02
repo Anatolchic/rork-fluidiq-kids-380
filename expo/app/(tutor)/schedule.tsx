@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, Modal, Switch, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, Modal, Switch, Platform, TextInput } from 'react-native';
 import { addDays, addMonths, format, parseISO, startOfMonth } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
-import { Plus, Trash2, Repeat, CalendarDays } from 'lucide-react-native';
+import { Plus, Trash2, Repeat, CalendarDays, Settings } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, DAY_NAMES } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
@@ -16,6 +16,7 @@ type AvailRow = {
   start_time: string;
   end_time: string;
   specific_date: string | null;
+  price_per_hour_override: number | null;
 };
 type Booking = { id: string; start_time: string; end_time: string; status: string; student_id: string };
 
@@ -35,6 +36,10 @@ export default function TutorSchedule() {
   const [addRecurring, setAddRecurring] = useState(false);
   const [pickStart, setPickStart] = useState('09:00');
   const [pickEnd, setPickEnd] = useState('12:00');
+  const [pickPrice, setPickPrice] = useState('');
+  const [editSlot, setEditSlot] = useState<AvailRow | null>(null);
+  const [editPrice, setEditPrice] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => { if (session) load(); }, [session, month]);
 
@@ -97,10 +102,15 @@ export default function TutorSchedule() {
   async function saveSlot() {
     if (pickStart >= pickEnd) { Alert.alert('Время окончания должно быть позже начала'); return; }
     if (!selectedDate) return;
+    const priceNum = pickPrice.trim() ? parseFloat(pickPrice.replace(',', '.')) : NaN;
+    if (pickPrice.trim() && (!isFinite(priceNum) || priceNum < 0)) {
+      Alert.alert('Цена должна быть положительным числом'); return;
+    }
     const payload: any = {
       tutor_id: session!.user.id,
       start_time: pickStart,
       end_time: pickEnd,
+      price_per_hour_override: pickPrice.trim() ? Math.round(priceNum * 100) : null,
     };
     if (addRecurring) {
       payload.day_of_week = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1;
@@ -111,7 +121,29 @@ export default function TutorSchedule() {
     }
     const { error } = await supabase.from('tutor_availability').insert(payload);
     if (error) { Alert.alert('Ошибка', ru(error)); return; }
-    setAddOpen(false); load();
+    setAddOpen(false); setPickPrice(''); load();
+  }
+
+  function openEditSlot(slot: AvailRow) {
+    setEditSlot(slot);
+    setEditPrice(slot.price_per_hour_override != null ? String(slot.price_per_hour_override / 100) : '');
+  }
+
+  async function saveEditSlot() {
+    if (!editSlot) return;
+    const trimmed = editPrice.trim();
+    const priceNum = trimmed ? parseFloat(trimmed.replace(',', '.')) : NaN;
+    if (trimmed && (!isFinite(priceNum) || priceNum < 0)) {
+      Alert.alert('Цена должна быть положительным числом'); return;
+    }
+    setEditSaving(true);
+    const { error } = await supabase
+      .from('tutor_availability')
+      .update({ price_per_hour_override: trimmed ? Math.round(priceNum * 100) : null } as any)
+      .eq('id', editSlot.id);
+    setEditSaving(false);
+    if (error) { Alert.alert('Ошибка', ru(error)); return; }
+    setEditSlot(null); setEditPrice(''); load();
   }
 
   async function removeSlot(id: string) {
@@ -161,7 +193,12 @@ export default function TutorSchedule() {
                 {dateSlots.map(slot => (
                   <View key={slot.id} style={s.slotRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.slotTime}>{slot.start_time} — {slot.end_time}</Text>
+                      <Text style={s.slotTime}>
+                        {slot.start_time} — {slot.end_time}
+                        {slot.price_per_hour_override != null && (
+                          <Text style={s.slotPrice}> · {(slot.price_per_hour_override / 100).toLocaleString('ru')} ₽/час</Text>
+                        )}
+                      </Text>
                       <View style={s.slotMeta}>
                         {slot.specific_date ? (
                           <View style={s.tag}><CalendarDays size={11} color={COLORS.warning} /><Text style={[s.tagText, { color: COLORS.warning }]}>Только эта дата</Text></View>
@@ -170,6 +207,9 @@ export default function TutorSchedule() {
                         )}
                       </View>
                     </View>
+                    <TouchableOpacity style={s.editBtn} onPress={() => openEditSlot(slot)}>
+                      <Settings size={14} color={COLORS.primary} />
+                    </TouchableOpacity>
                     <TouchableOpacity style={s.delBtn} onPress={() => removeSlot(slot.id)}>
                       <Trash2 size={14} color={COLORS.error} />
                     </TouchableOpacity>
@@ -216,12 +256,51 @@ export default function TutorSchedule() {
               </View>
               <Switch value={addRecurring} onValueChange={setAddRecurring} trackColor={{ true: COLORS.primary, false: COLORS.border }} />
             </View>
+            <Text style={s.modalLabel}>Цена за час (необязательно)</Text>
+            <TextInput
+              style={s.priceInput}
+              value={pickPrice}
+              onChangeText={setPickPrice}
+              placeholder="Если пусто — обычная цена из профиля"
+              placeholderTextColor={COLORS.textSecondary}
+              keyboardType="numeric"
+              maxLength={6}
+            />
+            <Text style={s.hint}>В рублях. Можно задавать особую цену для конкретного слота — например, выше для вечернего времени или ниже для утра.</Text>
             <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalCancel} onPress={() => setAddOpen(false)}>
+              <TouchableOpacity style={s.modalCancel} onPress={() => { setAddOpen(false); setPickPrice(''); }}>
                 <Text style={s.modalCancelText}>Отмена</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.modalSave} onPress={saveSlot}>
                 <Text style={s.modalSaveText}>Сохранить</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!editSlot} animationType="slide" transparent onRequestClose={() => setEditSlot(null)}>
+        <View style={s.modalRoot}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>Цена слота {editSlot?.start_time} — {editSlot?.end_time}</Text>
+            <Text style={s.modalLabel}>Цена за час (₽)</Text>
+            <TextInput
+              style={s.priceInput}
+              value={editPrice}
+              onChangeText={setEditPrice}
+              placeholder="Пусто — обычная цена из профиля"
+              placeholderTextColor={COLORS.textSecondary}
+              keyboardType="numeric"
+              maxLength={6}
+              autoFocus
+            />
+            <Text style={s.hint}>Очистите поле, чтобы вернуть слот к обычной цене из профиля.</Text>
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalCancel} onPress={() => { setEditSlot(null); setEditPrice(''); }} disabled={editSaving}>
+                <Text style={s.modalCancelText}>Отмена</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.modalSave, editSaving && { opacity: 0.5 }]} onPress={saveEditSlot} disabled={editSaving}>
+                {editSaving ? <ActivityIndicator color="#fff" /> : <Text style={s.modalSaveText}>Сохранить</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -245,11 +324,13 @@ const s = StyleSheet.create({
   addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   empty: { paddingVertical: 16, alignItems: 'center' },
   emptyText: { fontSize: 13, color: COLORS.textSecondary },
-  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: COLORS.success + '10', borderRadius: 10, borderWidth: 1, borderColor: COLORS.success + '30' },
+  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: COLORS.success + '10', borderRadius: 10, borderWidth: 1, borderColor: COLORS.success + '30' },
   slotTime: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  slotPrice: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
   slotMeta: { fontSize: 11, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tagText: { fontSize: 11, fontWeight: '600' },
+  editBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary + '15' },
   delBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.error + '15' },
   modalRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: COLORS.background, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 20, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 10 },
@@ -258,6 +339,7 @@ const s = StyleSheet.create({
   hint: { fontSize: 11, color: COLORS.textSecondary },
   hourScroll: { gap: 6, paddingVertical: 4 },
   hourChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 60, alignItems: 'center' },
+  priceInput: { backgroundColor: COLORS.white, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: COLORS.border, fontSize: 14, color: COLORS.text, marginTop: 4 },
   hourChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   hourText: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
   hourTextActive: { color: '#fff' },

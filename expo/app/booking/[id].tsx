@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Act
 import { useLocalSearchParams, router } from 'expo-router';
 import { format, differenceInMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar, Clock, BookOpen, Target, MessageSquare, Video, X, AlertTriangle } from 'lucide-react-native';
+import { Calendar, Clock, BookOpen, Target, MessageSquare, Video, X, AlertTriangle, Repeat } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS, MIN_BALANCE_KOPECKS } from '../../lib/constants';
 import { Booking } from '../../lib/types';
@@ -136,6 +136,21 @@ export default function BookingDetails() {
           {booking.topic && <View style={styles.line}><Target size={16} color={COLORS.primary} /><Text style={styles.lineText}>{booking.topic}</Text></View>}
         </View>
 
+        {booking.series_id && (
+          <TouchableOpacity
+            style={styles.seriesCard}
+            onPress={() => router.push(`/(student)/bookings?series=${booking.series_id}`)}
+            activeOpacity={0.8}
+          >
+            <Repeat size={16} color={COLORS.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.seriesTitle}>Часть серии</Text>
+              <Text style={styles.seriesSub}>Это бронирование — один из уроков регулярной серии. Нажмите, чтобы посмотреть все уроки серии.</Text>
+            </View>
+            <Text style={styles.seriesArrow}>›</Text>
+          </TouchableOpacity>
+        )}
+
         {isStudent && booking.status === 'confirmed' && booking.tutor?.payment_details && (
           <View style={styles.payCard}>
             <Text style={styles.payTitle}>💳 Реквизиты репетитора</Text>
@@ -245,6 +260,10 @@ const styles = StyleSheet.create({
   warnSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   chatBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.primary + '30' },
   chatBtnText: { fontSize: 15, color: COLORS.primary, fontWeight: '700' },
+  seriesCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary + '10', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.primary + '30' },
+  seriesTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  seriesSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2, lineHeight: 15 },
+  seriesArrow: { fontSize: 22, color: COLORS.primary, fontWeight: '300' },
   actions: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background },
   declineBtn: { flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.error + '15', borderRadius: 12 },
   declineText: { color: COLORS.error, fontSize: 14, fontWeight: '700' },

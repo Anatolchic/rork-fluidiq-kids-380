@@ -1,30 +1,54 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS } from '../../lib/constants';
-import { loadBookings } from '../../lib/bookings';
+import { loadBookings, BookingWithParticipants } from '../../lib/bookings';
+import { usePagination } from '../../lib/pagination';
+
+const PAGE_SIZE = 20;
 
 export default function AdminBookings() {
-  const [list, setList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
 
-  useEffect(() => { load(); }, [filter]);
+  // fetcher пересоздаётся при смене filter — usePagination это ловит через refresh()
+  // ниже (вызывается из useEffect(filter)).
+  const fetcher = useCallback(
+    async (from: number, to: number) => {
+      let q = supabase
+        .from('bookings')
+        .select('*')
+        .order('start_time', { ascending: false })
+        .range(from, to);
+      if (filter) q = q.eq('status', filter);
+      return (await loadBookings(q)) as BookingWithParticipants[];
+    },
+    [filter],
+  );
 
-  async function load() {
-    setLoading(true);
-    let q = supabase.from('bookings').select('*').order('start_time', { ascending: false });
-    if (filter) q = q.eq('status', filter);
-    const data = await loadBookings(q.limit(200));
-    setList(data as any);
-    setLoading(false);
-  }
+  const { items, loading, loadingMore, hasMore, loadMore, refresh } =
+    usePagination<BookingWithParticipants>(fetcher, PAGE_SIZE);
 
-  const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [filter]);
+  // Когда меняется filter — fetcher уже обновился через ref внутри хука, нам остаётся
+  // дёрнуть refresh(). Первый рендер пропускаем — initial load делает сам хук.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
 
   return (
     <SafeAreaView style={s.container}>
@@ -48,7 +72,7 @@ export default function AdminBookings() {
 
       {loading ? <View style={s.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View> : (
         <FlatList
-          data={list}
+          data={items}
           keyExtractor={i => i.id}
           contentContainerStyle={s.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -74,6 +98,21 @@ export default function AdminBookings() {
             </TouchableOpacity>
           )}
           ListEmptyComponent={<View style={s.empty}><Text style={s.dim}>Нет бронирований</Text></View>}
+          ListFooterComponent={
+            items.length === 0 ? null : hasMore ? (
+              <TouchableOpacity style={s.moreBtn} onPress={loadMore} disabled={loadingMore}>
+                {loadingMore ? (
+                  <ActivityIndicator color={COLORS.primary} />
+                ) : (
+                  <Text style={s.moreBtnText}>Загрузить ещё</Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <Text style={s.endLabel}>Это всё</Text>
+            )
+          }
+          onEndReachedThreshold={0.5}
+          onEndReached={() => { if (hasMore && !loadingMore) loadMore(); }}
         />
       )}
     </SafeAreaView>
@@ -106,4 +145,7 @@ const s = StyleSheet.create({
   link: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
   meta: { fontSize: 12, color: COLORS.textSecondary },
   empty: { padding: 40, alignItems: 'center' },
+  moreBtn: { marginTop: 12, marginBottom: 24, alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, minWidth: 180, alignItems: 'center' },
+  moreBtnText: { color: COLORS.primary, fontSize: 13, fontWeight: '700' },
+  endLabel: { textAlign: 'center', color: COLORS.textSecondary, fontSize: 11, paddingVertical: 16 },
 });

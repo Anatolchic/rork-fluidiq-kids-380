@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, RefreshControl, TextInput, Modal, Alert, Linking, Platform } from 'react-native';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
-import { TrendingUp, TrendingDown, Plus } from 'lucide-react-native';
+import { ru as ruLocale } from 'date-fns/locale';
+import { TrendingUp, TrendingDown, Plus, Star, Check } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { initTopupPayment } from '../../lib/tbank';
 import { COLORS, MIN_BALANCE_KOPECKS, COMMISSION_KOPECKS } from '../../lib/constants';
+import { ru } from '../../lib/errors';
 import { Payment, TutorProfile } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+
+const DEFAULT_PRO_PRICE_KOPECKS = 99000;
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
@@ -21,20 +24,44 @@ export default function TutorWallet() {
   const [amount, setAmount] = useState('1000');
   const [paying, setPaying] = useState(false);
   const [testMode, setTestMode] = useState(false);
+  const [isPro, setIsPro] = useState(false);
+  const [proUntil, setProUntil] = useState<string | null>(null);
+  const [proPrice, setProPrice] = useState<number>(DEFAULT_PRO_PRICE_KOPECKS);
+  const [buyingPro, setBuyingPro] = useState(false);
 
   useEffect(() => { if (session) load(); }, [session]);
 
   async function load() {
     setLoading(true);
-    const [p, h, s] = await Promise.all([
+    const [p, h, s, pro, sub] = await Promise.all([
       supabase.from('tutor_profiles').select('*').eq('user_id', session!.user.id).single(),
       supabase.from('payments').select('*').eq('tutor_id', session!.user.id).order('created_at', { ascending: false }).limit(30),
-      supabase.from('app_settings').select('test_mode').limit(1).maybeSingle(),
+      supabase.from('app_settings').select('test_mode, pro_subscription_price_kopecks').limit(1).maybeSingle(),
+      supabase.rpc('is_pro_tutor', { p_user_id: session!.user.id }),
+      supabase.from('tutor_subscriptions').select('expires_at').eq('tutor_id', session!.user.id).order('expires_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (p.data) setProfile(p.data);
     setHistory(h.data || []);
     setTestMode(!!s.data?.test_mode);
+    const priceFromSettings = (s.data as any)?.pro_subscription_price_kopecks;
+    setProPrice(priceFromSettings && priceFromSettings > 0 ? priceFromSettings : DEFAULT_PRO_PRICE_KOPECKS);
+    setIsPro(!!pro.data);
+    setProUntil((sub.data as any)?.expires_at ?? null);
     setLoading(false);
+  }
+
+  async function handleBuyPro() {
+    setBuyingPro(true);
+    const { data, error } = await supabase.rpc('buy_pro_subscription', { p_months: 1 });
+    setBuyingPro(false);
+    if (error) { Alert.alert('Не удалось', ru(error)); return; }
+    const result = data as any;
+    if (result && result.ok === false) {
+      Alert.alert('Не удалось', result.error || 'Недостаточно средств на балансе');
+      return;
+    }
+    Alert.alert('Готово', isPro ? 'PRO-подписка продлена на месяц' : 'PRO-подписка активирована на месяц');
+    load();
   }
 
   async function handleDevTopup() {
@@ -95,6 +122,44 @@ export default function TutorWallet() {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.proCard}>
+          <View style={styles.proHeaderRow}>
+            <View style={styles.proBadge}>
+              <Star size={14} color="#fff" fill="#fff" />
+              <Text style={styles.proBadgeText}>PRO</Text>
+            </View>
+            {isPro && proUntil && (
+              <Text style={styles.proStatus}>до {format(new Date(proUntil), 'd MMMM yyyy', { locale: ruLocale })}</Text>
+            )}
+          </View>
+          <Text style={styles.proTitle}>{isPro ? 'PRO-подписка активна' : 'PRO-подписка'}</Text>
+          <Text style={styles.proPrice}>{(proPrice / 100).toLocaleString('ru')} ₽ / месяц</Text>
+          <View style={styles.perks}>
+            <View style={styles.perkRow}>
+              <Check size={14} color={COLORS.primary} />
+              <Text style={styles.perkText}>Приоритетное место в каталоге</Text>
+            </View>
+            <View style={styles.perkRow}>
+              <Check size={14} color={COLORS.primary} />
+              <Text style={styles.perkText}>Без комиссии за урок</Text>
+            </View>
+            <View style={styles.perkRow}>
+              <Check size={14} color={COLORS.primary} />
+              <Text style={styles.perkText}>Бейдж ⭐ PRO рядом с именем</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.proBtn, buyingPro && styles.proBtnDisabled]}
+            disabled={buyingPro}
+            onPress={handleBuyPro}
+          >
+            {buyingPro ? <ActivityIndicator color="#fff" /> : (
+              <Text style={styles.proBtnText}>{isPro ? 'Продлить на месяц' : 'Купить PRO на месяц'}</Text>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.proHint}>Списание с баланса. Убедись, что на счёте есть {(proPrice / 100).toLocaleString('ru')} ₽.</Text>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>История</Text>
           {history.length === 0 ? (
@@ -112,7 +177,7 @@ export default function TutorWallet() {
                   <Text style={styles.historyTitle}>
                     {p.type === 'topup' ? 'Пополнение' : p.type === 'commission' ? 'Комиссия за урок' : 'Возврат'}
                   </Text>
-                  <Text style={styles.historyDate}>{format(new Date(p.created_at), 'd MMMM, HH:mm', { locale: ru })}</Text>
+                  <Text style={styles.historyDate}>{format(new Date(p.created_at), 'd MMMM, HH:mm', { locale: ruLocale })}</Text>
                 </View>
                 <Text style={[styles.historyAmount, { color: p.type === 'topup' ? COLORS.success : COLORS.error }]}>
                   {p.type === 'topup' ? '+' : '−'}{(p.amount / 100).toLocaleString('ru')} ₽
@@ -203,4 +268,18 @@ const styles = StyleSheet.create({
   modalPayText: { fontSize: 15, color: '#fff', fontWeight: '700' },
   devLink: { alignSelf: 'center', paddingVertical: 8, marginTop: 4 },
   devLinkText: { fontSize: 11, color: COLORS.textSecondary, textDecorationLine: 'underline', opacity: 0.6 },
+  proCard: { backgroundColor: COLORS.white, borderRadius: 18, padding: 20, gap: 8, borderWidth: 1, borderColor: COLORS.border },
+  proHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  proBadgeText: { color: '#fff', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
+  proStatus: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  proTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginTop: 4 },
+  proPrice: { fontSize: 22, fontWeight: '800', color: COLORS.primary },
+  perks: { gap: 6, marginTop: 8 },
+  perkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  perkText: { fontSize: 13, color: COLORS.text },
+  proBtn: { marginTop: 14, height: 48, borderRadius: 12, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  proBtnDisabled: { opacity: 0.5 },
+  proBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  proHint: { fontSize: 11, color: COLORS.textSecondary, marginTop: 6, lineHeight: 16 },
 });

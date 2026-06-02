@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { format, addDays, isSameDay, startOfDay, addMinutes, isBefore } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { ru as ruLocale } from 'date-fns/locale';
 import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS } from '../../lib/constants';
 import { TutorProfile, TutorAvailability, Booking, LessonDuration, Subject, Level } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
+import { ru } from '../../lib/errors';
 
 const DAYS_AHEAD = 14;
 const SLOT_INTERVAL_MIN = 30;
@@ -36,6 +37,8 @@ export default function BookingNew() {
   const [promoCode, setPromoCode] = useState('');
   const [promoApplied, setPromoApplied] = useState<{ percent: number; discount_kopecks: number } | null>(null);
   const [promoChecking, setPromoChecking] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringWeeks, setRecurringWeeks] = useState<4 | 8 | 12>(4);
 
   useEffect(() => { if (tutorId && session) load(); }, [tutorId, session]);
 
@@ -135,43 +138,83 @@ export default function BookingNew() {
         : Math.round((tutor.price_per_hour * duration) / 60);
       const price = promoApplied ? Math.max(basePrice - promoApplied.discount_kopecks, 0) : basePrice;
       const status = tutor.auto_confirm ? 'confirmed' : 'pending';
+      const canRecur = isRecurring && !isIntro; // ознакомительный не размножаем
 
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          student_id: session.user.id,
-          tutor_id: tutor.user_id,
-          subject,
-          level,
-          start_time: start.toISOString(),
-          end_time: end.toISOString(),
-          duration,
-          topic: topic.trim() || null,
-          status,
-          price,
-          is_intro: isIntro && previousBookings === 0,
-        })
-        .select('id')
-        .single();
-      if (bookingError) throw bookingError;
+      // Регулярная серия — сначала booking_series, потом N бронирований с series_id
+      let seriesId: string | null = null;
+      if (canRecur) {
+        const { data: seriesData, error: seriesError } = await supabase
+          .from('booking_series' as any)
+          .insert({
+            student_id: session.user.id,
+            tutor_id: tutor.user_id,
+            subject,
+            level,
+            duration,
+            weeks: recurringWeeks,
+            topic: topic.trim() || null,
+          } as any)
+          .select('id')
+          .single();
+        if (seriesError) throw seriesError;
+        seriesId = (seriesData as any).id;
+      }
 
-      if (promoApplied) {
+      const occurrences = canRecur ? recurringWeeks : 1;
+      const createdIds: string[] = [];
+      for (let i = 0; i < occurrences; i++) {
+        const s = addDays(start, i * 7);
+        const e = addDays(end, i * 7);
+        const { data: bd, error: be } = await supabase
+          .from('bookings')
+          .insert({
+            student_id: session.user.id,
+            tutor_id: tutor.user_id,
+            subject,
+            level,
+            start_time: s.toISOString(),
+            end_time: e.toISOString(),
+            duration,
+            topic: topic.trim() || null,
+            status,
+            price,
+            is_intro: isIntro && previousBookings === 0 && i === 0,
+            series_id: seriesId,
+          } as any)
+          .select('id')
+          .single();
+        if (be) throw be;
+        createdIds.push((bd as any).id);
+      }
+
+      const firstId = createdIds[0];
+
+      if (promoApplied && firstId) {
         await supabase.from('promo_code_uses').insert({
-          code: promoCode, user_id: session.user.id, booking_id: bookingData.id,
+          code: promoCode, user_id: session.user.id, booking_id: firstId,
           discount_kopecks: promoApplied.discount_kopecks,
         });
         await supabase.rpc('increment_promo_use' as any, { p_code: promoCode }).catch(() => {});
       }
 
-      await supabase.from('chat_rooms').insert({
-        booking_id: bookingData.id,
-        student_id: session.user.id,
-        tutor_id: tutor.user_id,
-      });
+      // Чат-комната — одна на серию (по первой брони)
+      if (firstId) {
+        await supabase.from('chat_rooms').insert({
+          booking_id: firstId,
+          student_id: session.user.id,
+          tutor_id: tutor.user_id,
+        });
+      }
 
-      router.replace(`/booking/${bookingData.id}`);
+      if (canRecur && occurrences > 1) {
+        Alert.alert('Готово', `Создано ${occurrences} бронирований`, [
+          { text: 'OK', onPress: () => router.replace(`/booking/${firstId}`) },
+        ]);
+      } else {
+        router.replace(`/booking/${firstId}`);
+      }
     } catch (e: any) {
-      Alert.alert('Не удалось забронировать', e.message || 'Попробуйте ещё раз');
+      Alert.alert('Не удалось забронировать', ru(e) || e.message || 'Попробуйте ещё раз');
     } finally {
       setSaving(false);
     }
@@ -240,9 +283,9 @@ export default function BookingNew() {
                 const active = selectedDate && isSameDay(d, selectedDate);
                 return (
                   <TouchableOpacity key={d.toISOString()} style={[styles.dateBtn, active && styles.dateBtnActive]} onPress={() => { setSelectedDate(d); setSelectedTime(null); }}>
-                    <Text style={[styles.dateDow, active && styles.dateTextActive]}>{format(d, 'EEE', { locale: ru })}</Text>
+                    <Text style={[styles.dateDow, active && styles.dateTextActive]}>{format(d, 'EEE', { locale: ruLocale })}</Text>
                     <Text style={[styles.dateDay, active && styles.dateTextActive]}>{format(d, 'd')}</Text>
-                    <Text style={[styles.dateMonth, active && styles.dateTextActive]}>{format(d, 'LLL', { locale: ru })}</Text>
+                    <Text style={[styles.dateMonth, active && styles.dateTextActive]}>{format(d, 'LLL', { locale: ruLocale })}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -267,6 +310,40 @@ export default function BookingNew() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              )}
+            </>
+          )}
+
+          {selectedDate && selectedTime && !isIntro && (
+            <>
+              <TouchableOpacity
+                style={[recurringStyles.card, isRecurring && recurringStyles.cardActive]}
+                onPress={() => setIsRecurring(v => !v)}
+                activeOpacity={0.8}
+              >
+                <View style={[recurringStyles.check, isRecurring && recurringStyles.checkOn]}>
+                  {isRecurring && <Text style={recurringStyles.checkMark}>✓</Text>}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={recurringStyles.title}>🔁 Сделать регулярной</Text>
+                  <Text style={recurringStyles.sub}>Будет создано несколько бронирований подряд: в тот же день недели и время, шаг 7 дней.</Text>
+                </View>
+              </TouchableOpacity>
+              {isRecurring && (
+                <>
+                  <Text style={styles.label}>На сколько недель</Text>
+                  <View style={styles.chipsWrap}>
+                    {[4, 8, 12].map(w => (
+                      <TouchableOpacity
+                        key={w}
+                        style={[styles.durBtn, recurringWeeks === w && styles.durBtnActive]}
+                        onPress={() => setRecurringWeeks(w as 4 | 8 | 12)}
+                      >
+                        <Text style={[styles.durText, recurringWeeks === w && styles.durTextActive]}>{w} нед.</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
               )}
             </>
           )}
@@ -316,7 +393,13 @@ export default function BookingNew() {
 
           <View style={styles.summary}>
             <Text style={styles.summaryLine}>Длительность: <Text style={styles.summaryBold}>{duration} минут</Text></Text>
-            <Text style={styles.summaryLine}>К оплате репетитору: <Text style={styles.summaryBold}>{priceForChoice.toLocaleString('ru')} ₽</Text></Text>
+            <Text style={styles.summaryLine}>Цена за урок: <Text style={styles.summaryBold}>{priceForChoice.toLocaleString('ru')} ₽</Text></Text>
+            {isRecurring && !isIntro && (
+              <>
+                <Text style={styles.summaryLine}>Уроков в серии: <Text style={styles.summaryBold}>{recurringWeeks}</Text></Text>
+                <Text style={styles.summaryLine}>Итого: <Text style={styles.summaryBold}>{(priceForChoice * recurringWeeks).toLocaleString('ru')} ₽</Text></Text>
+              </>
+            )}
             <Text style={styles.summaryHint}>Оплата происходит напрямую репетитору указанным им способом после подтверждения брони.</Text>
           </View>
         </ScrollView>
@@ -333,6 +416,16 @@ export default function BookingNew() {
 
 const introStyles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginTop: 12, backgroundColor: COLORS.warning + '15', borderRadius: 12, borderWidth: 1, borderColor: COLORS.warning + '40' },
+  cardActive: { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary },
+  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
+  checkOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  title: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  sub: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17, marginTop: 2 },
+});
+
+const recurringStyles = StyleSheet.create({
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginTop: 12, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
   cardActive: { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   checkOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },

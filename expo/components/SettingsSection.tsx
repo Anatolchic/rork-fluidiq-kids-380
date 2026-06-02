@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { Fingerprint, Bell, LogOut, Send } from 'lucide-react-native';
+import { Fingerprint, Bell, LogOut, Send, Calendar, Copy } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import supabase from '../lib/supabase';
 import { COLORS } from '../lib/constants';
 import { ru } from '../lib/errors';
@@ -131,6 +132,24 @@ export default function SettingsSection() {
     ]);
   }
 
+  async function copyCalendarUrl() {
+    const token = session?.access_token;
+    if (!token) {
+      Alert.alert('Сначала войдите', 'Чтобы получить ссылку на календарь, войдите в аккаунт.');
+      return;
+    }
+    const url = `https://supabase.repetitory-app.ru/functions/v1/calendar-ics?token=${token}`;
+    try {
+      await Clipboard.setStringAsync(url);
+      Alert.alert(
+        'Ссылка скопирована',
+        'Добавьте эту ссылку в Google Calendar / Apple Calendar как подписку (Subscribe to calendar by URL). Календарь будет обновляться автоматически.',
+      );
+    } catch (e: any) {
+      Alert.alert('Не удалось скопировать', ru(e));
+    }
+  }
+
   async function logout() {
     Alert.alert('Выйти из аккаунта?', '', [
       { text: 'Отмена' },
@@ -230,6 +249,23 @@ export default function SettingsSection() {
         )}
       </View>
 
+      <View style={s.card}>
+        <Text style={s.title}>Календарь</Text>
+        <Text style={s.hint}>
+          Подпишитесь на ваш календарь броней в Google Calendar или Apple Calendar — события будут
+          появляться и обновляться автоматически.
+        </Text>
+        <TouchableOpacity style={s.calBtn} onPress={copyCalendarUrl}>
+          <Calendar size={16} color="#fff" />
+          <Text style={s.calBtnText}>Экспорт в Google/Apple Calendar</Text>
+          <Copy size={14} color="#fff" />
+        </TouchableOpacity>
+        <Text style={s.hintSmall}>
+          После нажатия — откройте Google Calendar (Other calendars → From URL) или Apple Calendar
+          (File → New Calendar Subscription) и вставьте скопированную ссылку.
+        </Text>
+      </View>
+
       <TouchableOpacity style={s.logout} onPress={logout}>
         <LogOut size={16} color={COLORS.error} />
         <Text style={s.logoutText}>Выйти из аккаунта</Text>
@@ -253,5 +289,8 @@ const s = StyleSheet.create({
   logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.error + '40' },
   tgBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, backgroundColor: '#229ED9', borderRadius: 10 },
   tgBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  calBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, backgroundColor: COLORS.primary, borderRadius: 10 },
+  calBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  hintSmall: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 16 },
   logoutText: { color: COLORS.error, fontSize: 14, fontWeight: '600' },
 });

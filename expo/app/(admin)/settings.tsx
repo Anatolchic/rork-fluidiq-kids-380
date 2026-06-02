@@ -2,8 +2,15 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator, TextInput, TouchableOpacity, Switch, Alert } from 'react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
+import { ru } from '../../lib/errors';
+import { useResponsive } from '../../lib/responsive';
+
+function rub(kop?: number | null) {
+  return ((kop || 0) / 100).toLocaleString('ru');
+}
 
 export default function AdminSettings() {
+  const { contentMaxWidth, isDesktop } = useResponsive();
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -11,7 +18,8 @@ export default function AdminSettings() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const { data } = await supabase.from('app_settings').select('*').limit(1).single();
+    const { data, error } = await supabase.from('app_settings').select('*').limit(1).single();
+    if (error) Alert.alert('Ошибка', ru(error));
     setSettings(data);
     setLoading(false);
   }
@@ -26,9 +34,11 @@ export default function AdminSettings() {
       tbank_terminal_id: settings.tbank_terminal_id,
       tbank_terminal_password: settings.tbank_terminal_password,
       test_mode: settings.test_mode,
+      verification_price_kopecks: settings.verification_price_kopecks,
+      pro_subscription_price_kopecks: settings.pro_subscription_price_kopecks,
     }).eq('id', settings.id);
     setSaving(false);
-    if (error) Alert.alert('Ошибка', error.message);
+    if (error) Alert.alert('Ошибка', ru(error));
     else Alert.alert('Сохранено');
   }
 
@@ -36,8 +46,28 @@ export default function AdminSettings() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll}>
+      <ScrollView contentContainerStyle={[s.scroll, isDesktop ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : null]}>
         <Text style={s.title}>Настройки платформы</Text>
+
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Текущие цены</Text>
+          <View style={s.priceRow}>
+            <Text style={s.priceLabel}>Комиссия за урок</Text>
+            <Text style={s.priceValue}>{rub(settings.lesson_commission)} ₽</Text>
+          </View>
+          <View style={s.priceRow}>
+            <Text style={s.priceLabel}>Мин. баланс</Text>
+            <Text style={s.priceValue}>{rub(settings.min_balance_to_start)} ₽</Text>
+          </View>
+          <View style={s.priceRow}>
+            <Text style={s.priceLabel}>Верификация</Text>
+            <Text style={s.priceValue}>{rub(settings.verification_price_kopecks)} ₽</Text>
+          </View>
+          <View style={s.priceRow}>
+            <Text style={s.priceLabel}>PRO-подписка / мес</Text>
+            <Text style={s.priceValue}>{rub(settings.pro_subscription_price_kopecks)} ₽</Text>
+          </View>
+        </View>
 
         <View style={s.card}>
           <Text style={s.cardTitle}>Финансы</Text>
@@ -45,6 +75,29 @@ export default function AdminSettings() {
           <TextInput style={s.input} value={String((settings.lesson_commission || 0) / 100)} onChangeText={v => patch({ lesson_commission: Math.round(Number(v) * 100) || 0 })} keyboardType="number-pad" />
           <Text style={s.label}>Мин. баланс для старта урока (₽)</Text>
           <TextInput style={s.input} value={String((settings.min_balance_to_start || 0) / 100)} onChangeText={v => patch({ min_balance_to_start: Math.round(Number(v) * 100) || 0 })} keyboardType="number-pad" />
+        </View>
+
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Платные сервисы для репетиторов</Text>
+          <Text style={s.help}>Стоимость подключается из buy_pro_subscription / request_verification — меняйте здесь.</Text>
+          <Text style={s.label}>Цена верификации (₽)</Text>
+          <TextInput
+            style={s.input}
+            value={String((settings.verification_price_kopecks || 0) / 100)}
+            onChangeText={v => patch({ verification_price_kopecks: Math.round(Number(v) * 100) || 0 })}
+            keyboardType="number-pad"
+            placeholder="500"
+            placeholderTextColor={COLORS.textSecondary}
+          />
+          <Text style={s.label}>Цена PRO-подписки за месяц (₽)</Text>
+          <TextInput
+            style={s.input}
+            value={String((settings.pro_subscription_price_kopecks || 0) / 100)}
+            onChangeText={v => patch({ pro_subscription_price_kopecks: Math.round(Number(v) * 100) || 0 })}
+            keyboardType="number-pad"
+            placeholder="990"
+            placeholderTextColor={COLORS.textSecondary}
+          />
         </View>
 
         <View style={s.card}>
@@ -89,4 +142,7 @@ const s = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   saveBtn: { height: 52, backgroundColor: COLORS.primary, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   saveText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  priceLabel: { fontSize: 13, color: COLORS.textSecondary },
+  priceValue: { fontSize: 14, fontWeight: '700', color: COLORS.text },
 });

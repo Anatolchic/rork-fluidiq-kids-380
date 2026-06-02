@@ -15,12 +15,13 @@ import NotificationBell from '../../components/NotificationBell';
 export default function StudentCatalog() {
   const { gridCols, contentMaxWidth, isDesktop } = useResponsive();
   const [tutors, setTutors] = useState<TutorProfile[]>([]);
+  const [proTutorIds, setProTutorIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'rating' | 'price_asc' | 'price_desc' | 'newest'>('rating');
+  const [sortBy, setSortBy] = useState<'pro_first' | 'rating' | 'price_asc' | 'price_desc' | 'newest'>('pro_first');
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => { fetchTutors(); }, [selectedSubject, selectedLevel, sortBy]);
@@ -34,10 +35,10 @@ export default function StudentCatalog() {
 
     if (selectedSubject) query = query.contains('subjects', [selectedSubject]);
     if (selectedLevel) query = query.contains('levels', [selectedLevel]);
-    if (sortBy === 'rating') query = query.order('rating', { ascending: false });
-    else if (sortBy === 'price_asc') query = query.order('price_per_hour', { ascending: true });
+    if (sortBy === 'price_asc') query = query.order('price_per_hour', { ascending: true });
     else if (sortBy === 'price_desc') query = query.order('price_per_hour', { ascending: false });
-    else query = query.order('created_at', { ascending: false });
+    else if (sortBy === 'newest') query = query.order('created_at', { ascending: false });
+    else query = query.order('rating', { ascending: false });
 
     const { data } = await query.limit(50);
     let result = data || [];
@@ -45,6 +46,30 @@ export default function StudentCatalog() {
       const s = search.toLowerCase();
       result = result.filter(t => t.name.toLowerCase().includes(s));
     }
+
+    // Загружаем активные PRO-подписки
+    const ids = result.map(t => t.user_id);
+    let proIds = new Set<string>();
+    if (ids.length > 0) {
+      const { data: subs } = await supabase
+        .from('tutor_subscriptions')
+        .select('tutor_id, expires_at')
+        .in('tutor_id', ids)
+        .gt('expires_at', new Date().toISOString());
+      proIds = new Set((subs || []).map((s: any) => s.tutor_id));
+    }
+    setProTutorIds(proIds);
+
+    if (sortBy === 'pro_first' || sortBy === 'rating') {
+      result = [...result].sort((a, b) => {
+        const aPro = proIds.has(a.user_id) ? 1 : 0;
+        const bPro = proIds.has(b.user_id) ? 1 : 0;
+        if (sortBy === 'pro_first' && aPro !== bPro) return bPro - aPro;
+        if (sortBy === 'rating' && aPro !== bPro) return bPro - aPro;
+        return (b.rating ?? 0) - (a.rating ?? 0);
+      });
+    }
+
     setTutors(result);
     setLoading(false);
   }
@@ -115,6 +140,7 @@ export default function StudentCatalog() {
       {/* Сортировка */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScroll} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
         {[
+          { key: 'pro_first', label: '⭐ PRO сначала' },
           { key: 'rating', label: '⭐ Рейтинг' },
           { key: 'price_asc', label: '💰 Дешевле' },
           { key: 'price_desc', label: '💎 Дороже' },
@@ -140,7 +166,7 @@ export default function StudentCatalog() {
           data={filteredTutors}
           key={`grid-${gridCols}`}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => <TutorCard tutor={item} compact={gridCols > 1} />}
+          renderItem={({ item }) => <TutorCard tutor={item} compact={gridCols > 1} isPro={proTutorIds.has(item.user_id)} />}
           numColumns={gridCols}
           columnWrapperStyle={gridCols > 1 ? { gap: 12, justifyContent: 'flex-start' } : undefined}
           contentContainerStyle={[styles.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
@@ -158,10 +184,10 @@ export default function StudentCatalog() {
   );
 }
 
-function TutorCard({ tutor, compact }: { tutor: TutorProfile; compact?: boolean }) {
+function TutorCard({ tutor, compact, isPro }: { tutor: TutorProfile; compact?: boolean; isPro?: boolean }) {
   return (
     <TouchableOpacity
-      style={[styles.card, compact && { flex: 1, minWidth: 240 }]}
+      style={[styles.card, compact && { flex: 1, minWidth: 240 }, isPro && styles.cardPro]}
       onPress={() => router.push(`/tutor/${tutor.user_id}`)}
       activeOpacity={0.7}
     >
@@ -174,7 +200,14 @@ function TutorCard({ tutor, compact }: { tutor: TutorProfile; compact?: boolean 
       </View>
       <View style={styles.cardBody}>
         <View style={styles.cardNameRow}>
-          <Text style={styles.cardName} numberOfLines={1}>{tutor.name}</Text>
+          <View style={styles.cardNameWrap}>
+            <Text style={styles.cardName} numberOfLines={1}>{tutor.name}</Text>
+            {isPro && (
+              <View style={styles.proBadgeSmall}>
+                <Text style={styles.proBadgeSmallText}>⭐ PRO</Text>
+              </View>
+            )}
+          </View>
           <View style={styles.cardRating}>
             <Text style={styles.cardRatingText}>⭐ {tutor.rating > 0 ? tutor.rating.toFixed(1) : 'Новый'}</Text>
           </View>
@@ -229,8 +262,12 @@ const styles = StyleSheet.create({
   cardAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
   cardAvatarText: { fontSize: 24, fontWeight: '700', color: COLORS.primary },
   cardBody: { flex: 1, gap: 3 },
-  cardNameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardName: { fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1 },
+  cardNameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 },
+  cardNameWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  cardName: { fontSize: 16, fontWeight: '700', color: COLORS.text, flexShrink: 1 },
+  cardPro: { borderWidth: 1, borderColor: COLORS.primary },
+  proBadgeSmall: { backgroundColor: COLORS.primary, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  proBadgeSmallText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
   cardRating: { backgroundColor: '#FFF8E1', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   cardRatingText: { fontSize: 12, fontWeight: '600', color: '#F57F17' },
   cardSubjects: { fontSize: 13, color: COLORS.primary, fontWeight: '500' },

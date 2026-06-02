@@ -16,6 +16,7 @@ export default function PublicTutorProfile() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isPro, setIsPro] = useState(false);
 
   useEffect(() => { if (id) load(); }, [id, month]);
 
@@ -23,16 +24,19 @@ export default function PublicTutorProfile() {
     setLoading(true);
     const monthStart = startOfMonth(month).toISOString();
     const monthEnd = addMonths(startOfMonth(month), 1).toISOString();
-    const [t, a, b] = await Promise.all([
+    const [t, a, b, sub] = await Promise.all([
       supabase.from('tutor_profiles').select('*').eq('user_id', id).maybeSingle(),
       supabase.from('tutor_availability').select('*').eq('tutor_id', id),
       supabase.from('bookings').select('start_time, end_time, status').eq('tutor_id', id)
         .gte('start_time', monthStart).lt('start_time', monthEnd)
         .in('status', ['pending', 'confirmed', 'active']),
+      supabase.from('tutor_subscriptions').select('expires_at').eq('tutor_id', id)
+        .gt('expires_at', new Date().toISOString()).limit(1).maybeSingle(),
     ]);
     setTutor(t.data);
     setAvails(a.data || []);
     setBookings(b.data || []);
+    setIsPro(!!sub.data);
     setLoading(false);
   }
 
@@ -78,7 +82,15 @@ export default function PublicTutorProfile() {
               <Text style={s.avatarText}>{tutor.name.charAt(0).toUpperCase()}</Text>
             </View>
           )}
-          <Text style={s.name}>{tutor.name}</Text>
+          <View style={s.nameRow}>
+            <Text style={s.name}>{tutor.name}</Text>
+            {isPro && (
+              <View style={s.proBadge}>
+                <Star size={12} color="#fff" fill="#fff" />
+                <Text style={s.proBadgeText}>PRO</Text>
+              </View>
+            )}
+          </View>
           <View style={s.ratingRow}>
             <Star size={16} color={COLORS.star} fill={COLORS.star} />
             <Text style={s.rating}>{tutor.rating > 0 ? `${tutor.rating.toFixed(1)} (${tutor.reviews_count} отзывов)` : 'Новый профиль'}</Text>
@@ -142,6 +154,9 @@ const s = StyleSheet.create({
   avatarImg: { width: 100, height: 100, borderRadius: 50, marginBottom: 8 },
   avatarText: { fontSize: 40, fontWeight: '700', color: COLORS.primary },
   name: { fontSize: 24, fontWeight: '700', color: COLORS.text },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  proBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rating: { fontSize: 14, color: COLORS.textSecondary },
   price: { fontSize: 22, fontWeight: '700', color: COLORS.primary, marginTop: 8 },
