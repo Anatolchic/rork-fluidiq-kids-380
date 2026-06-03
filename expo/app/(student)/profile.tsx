@@ -38,12 +38,12 @@ export default function StudentProfileScreen() {
       { text: 'Отмена' },
       { text: 'Выйти', style: 'destructive', onPress: async () => {
         await supabase.auth.signOut();
-        setSession(null);
-        setStoreProfile(null);
+        // onAuthStateChange в _layout сам перенаправит на login
       }},
     ]);
   }
 
+  if (!session) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
   return (

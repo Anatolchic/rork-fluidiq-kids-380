@@ -57,8 +57,7 @@ export default function AdminLayout() {
           </ScrollView>
           <TouchableOpacity style={styles.logoutItem} onPress={async () => {
             await supabase.auth.signOut();
-            setSession(null); setProfile(null);
-            router.replace('/(auth)/login');
+            // onAuthStateChange в app/_layout.tsx сам перенаправит на login
           }}>
             <LogOut size={16} color={COLORS.error} />
             <Text style={styles.logoutText}>Выйти</Text>

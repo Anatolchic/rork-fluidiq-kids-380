@@ -81,8 +81,10 @@ export default function AdminProfile() {
 
   async function logout() {
     await supabase.auth.signOut();
-    setSession(null); setProfile(null);
-    router.replace('/(auth)/login');
+    // НЕ ставим setSession(null)/setProfile(null) и НЕ навигируем —
+    // onAuthStateChange в app/_layout.tsx сам обработает и перенаправит
+    // на /(auth)/login. Иначе re-render с session=null падает в дочерних
+    // компонентах раньше чем Stack успеет перейти на login.
   }
 
   return (
