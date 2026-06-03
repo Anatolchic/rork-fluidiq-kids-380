@@ -91,7 +91,7 @@ export default function LoginScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.logoWrap}
           >
-            <GraduationCap size={60} color="#fff" strokeWidth={2} />
+            <GraduationCap size={75} color="#fff" strokeWidth={2} />
           </LinearGradient>
           <Text style={styles.title}>Репетиторы</Text>
           <Text style={styles.subtitle}>Войдите в свой аккаунт</Text>

@@ -89,7 +89,7 @@ export default function RegisterScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.logoWrap}
             >
-              <GraduationCap size={44} color="#fff" strokeWidth={2} />
+              <GraduationCap size={54} color="#fff" strokeWidth={2} />
             </LinearGradient>
             <Text style={styles.title}>Регистрация</Text>
             <Text style={styles.subtitle}>Создайте новый аккаунт</Text>
