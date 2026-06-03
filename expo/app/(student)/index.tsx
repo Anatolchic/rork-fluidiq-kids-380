@@ -160,17 +160,17 @@ export default function StudentCatalog() {
               end={{ x: 1, y: 1 }}
               style={styles.hero}
             >
+              <View pointerEvents="none" style={styles.heroIconWrap}>
+                <GraduationCap size={120} color="#ffffff14" strokeWidth={1.5} />
+              </View>
               <View style={styles.heroTopRow}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1 }} pointerEvents="none">
                   <Text style={styles.heroEyebrow}>Найди своего</Text>
                   <Text style={styles.heroTitle}>репетитора</Text>
                 </View>
                 <View style={styles.heroBell}>
                   <NotificationBell />
                 </View>
-              </View>
-              <View style={styles.heroIconWrap}>
-                <GraduationCap size={120} color="#ffffff14" strokeWidth={1.5} />
               </View>
             </LinearGradient>
 

@@ -25,6 +25,9 @@ import { ru } from '../../../lib/errors';
 import { useAuthStore } from '../../../stores/auth';
 import { useResponsive } from '../../../lib/responsive';
 import { markRead as markDirectRead } from '../../../lib/direct-chats';
+import { AttachmentBar } from '../../../components/AttachmentBar';
+import { AttachmentView } from '../../../components/AttachmentView';
+import { MessageStatus } from '../../../components/MessageStatus';
 
 type Partner = {
   user_id: string;
@@ -182,10 +185,22 @@ export default function DirectChatScreen() {
               </View>
             )}
             <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
-              <Text style={[styles.msgText, isOwn && styles.msgTextOwn]}>{item.content}</Text>
-              <Text style={[styles.time, isOwn && styles.timeOwn]}>
-                {format(new Date(item.created_at), 'HH:mm')}
-              </Text>
+              {(item as any).file_url ? (
+                <>
+                  <AttachmentView fileUrl={(item as any).file_url} fileName={(item as any).file_name} type={item.type} isOwn={isOwn} />
+                  {item.content && !item.content.startsWith('📷') && !item.content.startsWith('📎') && (
+                    <Text style={[styles.msgText, isOwn && styles.msgTextOwn, { marginTop: 6 }]}>{item.content}</Text>
+                  )}
+                </>
+              ) : (
+                <Text style={[styles.msgText, isOwn && styles.msgTextOwn]}>{item.content}</Text>
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end', marginTop: 2 }}>
+                <Text style={[styles.time, isOwn && styles.timeOwn]}>
+                  {format(new Date(item.created_at), 'HH:mm')}
+                </Text>
+                {isOwn && <MessageStatus read={!!(item as any).read_at} light />}
+              </View>
             </View>
           </View>
         </View>
@@ -259,6 +274,22 @@ export default function DirectChatScreen() {
         />
 
         <View style={styles.inputBar}>
+          {session && (
+            <AttachmentBar
+              ownerId={session.user.id}
+              onUploaded={async (att) => {
+                const { error } = await supabase.from('messages').insert({
+                  direct_chat_id: chatId,
+                  sender_id: session.user.id,
+                  content: att.type === 'image' ? '📷 Фото' : `📎 ${att.file_name}`,
+                  type: att.type,
+                  file_url: att.file_url,
+                  file_name: att.file_name,
+                });
+                if (error) Alert.alert('Не отправлено', ru(error));
+              }}
+            />
+          )}
           <TextInput
             style={styles.input}
             value={text}

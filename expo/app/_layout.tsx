@@ -89,22 +89,38 @@ export default function RootLayout() {
   }, []);
 
   async function loadProfile(userId: string) {
-    try {
-      lastLoadedUserIdRef.current = userId;
-      const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
-      if (data?.role) {
-        setProfile({ role: data.role, userId });
-        if (!ready) {
-          if (data.role === 'student') safeReplace('/(student)');
-          else if (data.role === 'tutor') safeReplace('/(tutor)');
-          else if (data.role === 'admin') safeReplace('/(admin)');
+    // Retry до 3 раз — иначе плохой ответ network может выбросить
+    // на role-select даже у пользователя с ролью.
+    let lastErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data, error } = await supabase
+          .from('user_roles').select('role')
+          .eq('user_id', userId).maybeSingle();
+        if (error) { lastErr = error; await new Promise(r => setTimeout(r, 400 * (attempt + 1))); continue; }
+        if (data?.role) {
+          lastLoadedUserIdRef.current = userId;
+          setProfile({ role: data.role, userId });
+          if (!ready) {
+            if (data.role === 'student') safeReplace('/(student)');
+            else if (data.role === 'tutor') safeReplace('/(tutor)');
+            else if (data.role === 'admin') safeReplace('/(admin)');
+          }
+          return;
         }
-      } else {
+        // data=null И нет ошибки → реально нет роли → role-select
+        lastLoadedUserIdRef.current = userId;
         safeReplace('/(auth)/role-select');
+        return;
+      } catch (e) {
+        lastErr = e;
+        await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
       }
-    } catch (e) {
-      console.warn('[loadProfile] error', e);
     }
+    console.warn('[loadProfile] all retries failed, keeping user where they are', lastErr);
+    // НЕ навигируем — пусть остаётся на текущем экране, попробуем при
+    // следующем onAuthStateChange. Не сбрасываем lastLoadedUserIdRef
+    // чтобы повторить попытку при следующем событии.
   }
 
   if (!ready) {

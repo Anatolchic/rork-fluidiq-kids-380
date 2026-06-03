@@ -4,13 +4,14 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { format, addDays, isSameDay, startOfDay, addMinutes, isBefore } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
 import { LinearGradient } from 'expo-linear-gradient';
-import { User, Gift, Repeat as RepeatIcon, Check, BookOpen, GraduationCap, Clock, CalendarDays } from 'lucide-react-native';
+import { User, Gift, Repeat as RepeatIcon, Check, BookOpen, GraduationCap, Clock, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, LEVELS, LESSON_DURATIONS } from '../../lib/constants';
 import { TutorProfile, TutorAvailability, Booking, LessonDuration, Subject, Level } from '../../lib/types';
 import { useAuthStore } from '../../stores/auth';
 import { ru } from '../../lib/errors';
 import { useResponsive } from '../../lib/responsive';
+import CalendarMonth from '../../components/CalendarMonth';
 
 const DAYS_AHEAD = 14;
 const SLOT_INTERVAL_MIN = 30;
@@ -33,6 +34,8 @@ export default function BookingNew() {
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(presetDate ? new Date(presetDate) : null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(presetDate ? new Date(presetDate) : new Date());
+  const [showSlots, setShowSlots] = useState<boolean>(!!presetDate);
   const [duration, setDuration] = useState<LessonDuration>(60);
   const [isIntro, setIsIntro] = useState(false);
   const [subject, setSubject] = useState<Subject | null>(null);
@@ -96,6 +99,11 @@ export default function BookingNew() {
     return dates;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availability]);
+
+  // Маркеры для CalendarMonth — какие даты в видимом месяце имеют слоты
+  const calendarMarkers = useMemo(() => {
+    return availableDates.map(d => ({ date: d, hasSlots: true }));
+  }, [availableDates]);
 
   const slotsForDate = useMemo<Slot[]>(() => {
     if (!selectedDate) return [];
@@ -330,54 +338,73 @@ export default function BookingNew() {
           <View style={styles.stepCard}>
             <View style={styles.stepHeader}>
               <View style={styles.stepIcon}><CalendarDays size={16} color={COLORS.primary} /></View>
-              <Text style={styles.stepTitle}>Дата</Text>
-            </View>
-            {availableDates.length === 0 ? (
-              <Text style={styles.warn}>Репетитор не задал расписание</Text>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
-                {availableDates.map(d => {
-                  const active = selectedDate && isSameDay(d, selectedDate);
-                  return (
-                    <Pressable
-                      key={d.toISOString()}
-                      style={({ pressed }) => [styles.dateBtn, active && styles.dateBtnActive, { transform: [{ scale: pressed ? 0.95 : 1 }] }]}
-                      onPress={() => { setSelectedDate(d); setSelectedTime(null); }}
-                    >
-                      <Text style={[styles.dateDow, active && styles.dateTextActive]}>{format(d, 'EEE', { locale: ruLocale })}</Text>
-                      <Text style={[styles.dateDay, active && styles.dateTextActive]}>{format(d, 'd')}</Text>
-                      <Text style={[styles.dateMonth, active && styles.dateTextActive]}>{format(d, 'LLL', { locale: ruLocale })}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            )}
-          </View>
-
-          {selectedDate && (
-            <View style={styles.stepCard}>
-              <View style={styles.stepHeader}>
-                <View style={styles.stepIcon}><Clock size={16} color={COLORS.primary} /></View>
-                <Text style={styles.stepTitle}>Время</Text>
-              </View>
-              {slotsForDate.length === 0 ? (
-                <Text style={styles.warn}>В этот день нет свободных слотов</Text>
-              ) : (
-                <View style={styles.timeWrap}>
-                  {slotsForDate.map(s => (
-                    <Pressable
-                      key={s.iso}
-                      style={({ pressed }) => [styles.timeBtn, selectedTime === s.iso && styles.timeBtnActive, s.isBusy && styles.timeBtnBusy, { transform: [{ scale: pressed && !s.isBusy ? 0.95 : 1 }] }]}
-                      disabled={s.isBusy}
-                      onPress={() => setSelectedTime(s.iso)}
-                    >
-                      <Text style={[styles.timeText, selectedTime === s.iso && styles.timeTextActive, s.isBusy && styles.timeTextBusy]}>{s.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
+              <Text style={styles.stepTitle}>{showSlots ? 'Свободные слоты' : 'Дата'}</Text>
+              {showSlots && (
+                <TouchableOpacity
+                  onPress={() => { setShowSlots(false); setSelectedTime(null); }}
+                  style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4 }}
+                  hitSlop={8}
+                >
+                  <ChevronLeft size={16} color={COLORS.primary} />
+                  <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '700' }}>Назад</Text>
+                </TouchableOpacity>
               )}
             </View>
-          )}
+
+            {availableDates.length === 0 ? (
+              <Text style={styles.warn}>Репетитор не задал расписание</Text>
+            ) : !showSlots ? (
+              <>
+                <CalendarMonth
+                  selectedDate={selectedDate}
+                  onSelect={(d) => { setSelectedDate(d); setSelectedTime(null); }}
+                  markers={calendarMarkers}
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  studentMode
+                  minDate={startOfDay(new Date())}
+                />
+                {selectedDate && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.viewSlotsBtn,
+                      { opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+                    ]}
+                    onPress={() => setShowSlots(true)}
+                  >
+                    <Text style={styles.viewSlotsBtnText}>
+                      Смотреть свободные слоты на {format(selectedDate, 'd MMMM', { locale: ruLocale })}
+                    </Text>
+                    <ChevronRight size={18} color="#fff" />
+                  </Pressable>
+                )}
+              </>
+            ) : (
+              <>
+                {selectedDate && (
+                  <Text style={styles.slotsHeading}>
+                    {format(selectedDate, 'd MMMM, EEEE', { locale: ruLocale })}
+                  </Text>
+                )}
+                {slotsForDate.length === 0 ? (
+                  <Text style={styles.warn}>В этот день нет свободных слотов</Text>
+                ) : (
+                  <View style={styles.timeWrap}>
+                    {slotsForDate.map(s => (
+                      <Pressable
+                        key={s.iso}
+                        style={({ pressed }) => [styles.timeBtn, selectedTime === s.iso && styles.timeBtnActive, s.isBusy && styles.timeBtnBusy, { transform: [{ scale: pressed && !s.isBusy ? 0.95 : 1 }] }]}
+                        disabled={s.isBusy}
+                        onPress={() => setSelectedTime(s.iso)}
+                      >
+                        <Text style={[styles.timeText, selectedTime === s.iso && styles.timeTextActive, s.isBusy && styles.timeTextBusy]}>{s.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </View>
 
           {selectedDate && selectedTime && !isIntro && (
             <>
@@ -571,6 +598,14 @@ const styles = StyleSheet.create({
   durText: { fontSize: 13, color: COLORS.text, fontWeight: '700' },
   durTextActive: { color: '#fff' },
   dateScroll: { gap: 10, paddingVertical: 4 },
+  viewSlotsBtn: {
+    marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: COLORS.primary, paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 14,
+    shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4,
+  },
+  viewSlotsBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  slotsHeading: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 12, textTransform: 'capitalize' },
   dateBtn: { width: 68, paddingVertical: 12, alignItems: 'center', borderRadius: 14, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
   dateBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   dateDow: { fontSize: 11, color: COLORS.textSecondary, textTransform: 'uppercase', fontWeight: '700', letterSpacing: 0.3 },
