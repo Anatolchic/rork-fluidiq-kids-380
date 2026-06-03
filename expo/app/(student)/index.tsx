@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Search, X, SlidersHorizontal, Star, Crown, BadgeCheck,
-  TrendingUp, Coins, Gem, Sparkles, GraduationCap, BookOpen, ChevronDown,
+  TrendingUp, Coins, Gem, Sparkles, GraduationCap, BookOpen, ChevronDown, Heart,
 } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, SUBJECTS, SUBJECT_CATEGORIES, POPULAR_SUBJECTS, subjectCategoryOf } from '../../lib/constants';
@@ -168,8 +168,17 @@ export default function StudentCatalog() {
                   <Text style={styles.heroEyebrow}>Найди своего</Text>
                   <Text style={styles.heroTitle}>репетитора</Text>
                 </View>
-                <View style={styles.heroBell}>
-                  <NotificationBell />
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <TouchableOpacity
+                    style={styles.heroBell}
+                    onPress={() => router.push('/(student)/favorites')}
+                    accessibilityLabel="Избранное"
+                  >
+                    <Heart size={22} color="#fff" fill="#ffffff44" />
+                  </TouchableOpacity>
+                  <View style={styles.heroBell}>
+                    <NotificationBell />
+                  </View>
                 </View>
               </View>
             </LinearGradient>

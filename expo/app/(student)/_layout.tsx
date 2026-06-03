@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GraduationCap, Calendar, Heart, MessageCircle, User } from 'lucide-react-native';
+import { GraduationCap, Calendar, MessageCircle, User } from 'lucide-react-native';
 import { COLORS } from '../../lib/constants';
 
 export default function StudentLayout() {
@@ -17,9 +17,9 @@ export default function StudentLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Репетиторы', tabBarIcon: ({ color, size }) => <GraduationCap color={color} size={size + 4} strokeWidth={2.2} /> }} />
       <Tabs.Screen name="bookings" options={{ title: 'Уроки', tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} /> }} />
-      <Tabs.Screen name="favorites" options={{ title: 'Избранное', tabBarIcon: ({ color, size }) => <Heart color={color} size={size} /> }} />
       <Tabs.Screen name="messages" options={{ title: 'Сообщения', tabBarIcon: ({ color, size }) => <MessageCircle color={color} size={size} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Профиль', tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }} />
+      <Tabs.Screen name="favorites" options={{ href: null }} />
     </Tabs>
   );
 }
