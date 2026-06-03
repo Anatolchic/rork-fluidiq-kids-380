@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -16,6 +16,20 @@ const queryClient = new QueryClient();
 export default function RootLayout() {
   const { setSession, setProfile, setLoading } = useAuthStore();
   const [ready, setReady] = useState(false);
+  // Дедупликация навигаций: на каждое обновление сессии (например refresh
+  // токена каждые ~5 минут) onAuthStateChange выстреливает заново. Без
+  // guard'а router.replace вызывается без необходимости и Safari/Rork
+  // отрубает приложение ошибкой «history.replaceState() more than 100 times
+  // per 10 seconds». Запоминаем последний путь и userId — не навигируем
+  // повторно туда же, не перезагружаем профиль для того же пользователя.
+  const lastNavigatedRef = useRef<string | null>(null);
+  const lastLoadedUserIdRef = useRef<string | null>(null);
+
+  function safeReplace(target: string) {
+    if (lastNavigatedRef.current === target) return;
+    lastNavigatedRef.current = target;
+    router.replace(target as any);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -52,10 +66,15 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
-        await loadProfile(session.user.id);
+        // Если профиль уже загружен для этого пользователя — не перезапускаем
+        // loadProfile (он сам делает router.replace и может зациклиться).
+        if (lastLoadedUserIdRef.current !== session.user.id) {
+          await loadProfile(session.user.id);
+        }
       } else {
         setProfile(null);
-        router.replace('/(auth)/login');
+        lastLoadedUserIdRef.current = null;
+        safeReplace('/(auth)/login');
       }
     });
 
@@ -64,16 +83,17 @@ export default function RootLayout() {
 
   async function loadProfile(userId: string) {
     try {
+      lastLoadedUserIdRef.current = userId;
       const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
       if (data?.role) {
         setProfile({ role: data.role, userId });
         if (!ready) {
-          if (data.role === 'student') router.replace('/(student)');
-          else if (data.role === 'tutor') router.replace('/(tutor)');
-          else if (data.role === 'admin') router.replace('/(admin)');
+          if (data.role === 'student') safeReplace('/(student)');
+          else if (data.role === 'tutor') safeReplace('/(tutor)');
+          else if (data.role === 'admin') safeReplace('/(admin)');
         }
       } else {
-        router.replace('/(auth)/role-select');
+        safeReplace('/(auth)/role-select');
       }
     } catch (e) {
       console.warn('[loadProfile] error', e);
