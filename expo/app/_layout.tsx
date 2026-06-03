@@ -34,19 +34,27 @@ export default function RootLayout() {
   useEffect(() => {
     let cancelled = false;
 
+    // Failsafe: монтируем Stack через 1.5s даже если supabase висит — иначе
+    // в Expo Go белый splash остаётся бесконечно (наблюдалось в проде).
+    const failsafe = setTimeout(() => {
+      if (!cancelled) {
+        setReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      }
+    }, 1500);
+
     async function init() {
       try {
-        // Жёсткий таймаут на getSession — если Supabase недоступен,
-        // не блокируем приложение бесконечно
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
-          setTimeout(() => resolve({ data: { session: null } }), 8000)
+          setTimeout(() => resolve({ data: { session: null } }), 5000)
         );
         const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
         if (cancelled) return;
         setSession(session);
         if (session?.user) {
-          await loadProfile(session.user.id);
+          // НЕ await: иначе init блокируется, splash зависает
+          loadProfile(session.user.id).catch(e => console.warn('[loadProfile]', e));
           registerForPushNotifications().then(token => {
             if (token && session.user) savePushToken(session.user.id, token);
           }).catch(() => {});
@@ -66,8 +74,6 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
-        // Если профиль уже загружен для этого пользователя — не перезапускаем
-        // loadProfile (он сам делает router.replace и может зациклиться).
         if (lastLoadedUserIdRef.current !== session.user.id) {
           await loadProfile(session.user.id);
         }
@@ -78,7 +84,7 @@ export default function RootLayout() {
       }
     });
 
-    return () => { cancelled = true; subscription.unsubscribe(); };
+    return () => { cancelled = true; clearTimeout(failsafe); subscription.unsubscribe(); };
   }, []);
 
   async function loadProfile(userId: string) {

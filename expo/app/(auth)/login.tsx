@@ -137,6 +137,7 @@ export default function LoginScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.btnPrimary}
+              pointerEvents="none"
             >
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Войти</Text>}
             </LinearGradient>

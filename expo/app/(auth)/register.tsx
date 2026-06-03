@@ -155,6 +155,7 @@ export default function RegisterScreen() {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.btnPrimary}
+                pointerEvents="none"
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Зарегистрироваться</Text>}
               </LinearGradient>
