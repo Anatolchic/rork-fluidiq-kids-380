@@ -38,9 +38,34 @@ export default function LoginScreen() {
   async function handleLogin() {
     if (!email || !password) { Alert.alert('Заполните все поля'); return; }
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+
+    // Hard timeout 15s — supabase-js может зависнуть на сохранении сессии
+    // (наблюдалось в проде: кнопка крутится бесконечно)
+    let resp: any = null;
+    let timedOut = false;
+    try {
+      resp = await Promise.race([
+        supabase.auth.signInWithPassword({ email: email.trim(), password }),
+        new Promise((_, reject) => setTimeout(() => { timedOut = true; reject(new Error('timeout')); }, 15000)),
+      ]);
+    } catch (e: any) {
+      setLoading(false);
+      Alert.alert('Ошибка входа', timedOut ? 'Сервер не отвечает. Проверь интернет и попробуй снова.' : String(e?.message || e));
+      return;
+    }
     setLoading(false);
+
+    const { data, error } = resp;
     if (error) { Alert.alert('Ошибка входа', ru(error)); return; }
+    if (!data?.session) { Alert.alert('Ошибка входа', 'Сессия не получена'); return; }
+
+    // Web: после успешного логина onAuthStateChange в _layout сам сделает
+    // router.replace на нужный кабинет. На всякий случай дублируем — если
+    // listener не сработал
+    if (Platform.OS === 'web') {
+      setTimeout(() => router.replace('/'), 100);
+      return;
+    }
 
     if (Platform.OS !== 'web' && data.session) {
       const supported = await isBiometricSupported();
