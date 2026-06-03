@@ -89,7 +89,7 @@ export default function RegisterScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.logoWrap}
             >
-              <GraduationCap size={56} color="#fff" strokeWidth={2} />
+              <GraduationCap size={44} color="#fff" strokeWidth={2} />
             </LinearGradient>
             <Text style={styles.title}>Регистрация</Text>
             <Text style={styles.subtitle}>Создайте новый аккаунт</Text>
@@ -197,14 +197,14 @@ const styles = StyleSheet.create({
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 },
   backText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
   logoWrap: {
-    width: 120, height: 120, borderRadius: 36,
+    width: 64, height: 64, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 7,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 5,
   },
   title: { fontSize: 30, fontWeight: '800', color: COLORS.text, marginBottom: 4, letterSpacing: -0.5 },
   subtitle: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
