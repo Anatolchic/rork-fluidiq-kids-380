@@ -479,6 +479,7 @@ export default function ChatScreen() {
             {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <Paperclip size={20} color={editingId ? COLORS.textSecondary : COLORS.primary} />}
           </TouchableOpacity>
           <TextInput
+            testID="chat-input"
             style={styles.input}
             value={text}
             onChangeText={t => { setText(t); if (t) emitTyping(); }}
@@ -487,7 +488,7 @@ export default function ChatScreen() {
             multiline
             maxLength={2000}
           />
-          <TouchableOpacity style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]} disabled={!text.trim() || sending} onPress={send}>
+          <TouchableOpacity testID="chat-send" style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]} disabled={!text.trim() || sending} onPress={send}>
             <Send size={18} color="#fff" />
           </TouchableOpacity>
         </View>

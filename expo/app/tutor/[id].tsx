@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Image, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Star, GraduationCap, Award } from 'lucide-react-native';
+import { Star, GraduationCap, Award, MessageCircle } from 'lucide-react-native';
 import { addDays, format, startOfMonth, addMonths } from 'date-fns';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { TutorProfile } from '../../lib/types';
 import CalendarMonth from '../../components/CalendarMonth';
 import { useResponsive } from '../../lib/responsive';
+import { useAuthStore } from '../../stores/auth';
+import { openDirectChat } from '../../lib/direct-chats';
+import { ru } from '../../lib/errors';
 
 export default function PublicTutorProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,7 +21,9 @@ export default function PublicTutorProfile() {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isPro, setIsPro] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
   const { contentMaxWidth } = useResponsive();
+  const { session, profile } = useAuthStore();
 
   useEffect(() => { if (id) load(); }, [id, month]);
 
@@ -69,6 +74,25 @@ export default function PublicTutorProfile() {
       router.push(`/booking/new?tutor=${tutor.user_id}`);
     }
   }
+
+  async function onWrite() {
+    if (!tutor || openingChat) return;
+    setOpeningChat(true);
+    try {
+      const chatId = await openDirectChat(tutor.user_id);
+      router.push(`/chat/direct/${chatId}`);
+    } catch (e: any) {
+      Alert.alert('Не удалось открыть чат', ru(e));
+    } finally {
+      setOpeningChat(false);
+    }
+  }
+
+  const canWrite =
+    profile?.role === 'student' &&
+    !!session &&
+    !!tutor &&
+    tutor.user_id !== session.user.id;
 
   if (loading) return <View style={s.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   if (!tutor) return <View style={s.loader}><Text style={s.empty}>Репетитор не найден</Text></View>;
@@ -138,9 +162,21 @@ export default function PublicTutorProfile() {
           />
         </View>
 
-        <TouchableOpacity style={s.bookBtn} onPress={onBook}>
-          <Text style={s.bookBtnText}>{selectedDate ? `Записаться на ${format(selectedDate, 'd MMMM')}` : 'Записаться на урок'}</Text>
-        </TouchableOpacity>
+        <View style={s.ctaRow}>
+          <TouchableOpacity style={[s.bookBtn, canWrite && s.bookBtnFlex]} onPress={onBook}>
+            <Text style={s.bookBtnText}>{selectedDate ? `Записаться на ${format(selectedDate, 'd MMMM')}` : 'Записаться на урок'}</Text>
+          </TouchableOpacity>
+          {canWrite && (
+            <TouchableOpacity
+              style={[s.writeBtn, openingChat && { opacity: 0.6 }]}
+              onPress={onWrite}
+              disabled={openingChat}
+            >
+              <MessageCircle size={18} color={COLORS.primary} />
+              <Text style={s.writeBtnText}>Написать</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -171,6 +207,16 @@ const s = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: COLORS.primaryLight },
   chipText: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
-  bookBtn: { height: 56, backgroundColor: COLORS.primary, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
+  ctaRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  bookBtn: { height: 56, backgroundColor: COLORS.primary, borderRadius: 14, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  bookBtnFlex: { flex: 1 },
   bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  writeBtn: {
+    height: 56, borderRadius: 14,
+    borderWidth: 1, borderColor: COLORS.primary,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  },
+  writeBtnText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
 });

@@ -251,6 +251,7 @@ export default function BookingNew() {
               {subjects.map(sj => (
                 <Pressable
                   key={sj}
+                  testID={`subject-${slugify(sj)}`}
                   style={({ pressed }) => [styles.chip, subject === sj && styles.chipActive, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
                   onPress={() => setSubject(sj)}
                 >
@@ -316,6 +317,7 @@ export default function BookingNew() {
               {allowedDurations.map(d => (
                 <Pressable
                   key={d.value}
+                  testID={`duration-${d.value}`}
                   style={({ pressed }) => [styles.durBtn, duration === d.value && styles.durBtnActive, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
                   onPress={() => { setDuration(d.value as LessonDuration); setSelectedTime(null); }}
                 >

@@ -456,6 +456,7 @@ function TutorCard({ tutor, compact, isPro, index }: { tutor: TutorProfile; comp
       ]}
     >
       <Pressable
+        testID={`tutor-card-${index}`}
         onPress={() => router.push(`/tutor/${tutor.user_id}`)}
         style={({ pressed }) => [
           styles.card,

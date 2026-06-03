@@ -128,6 +128,7 @@ export default function RootLayout() {
         <Stack.Screen name="booking/new" options={{ headerShown: true, title: 'Запись на урок', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="booking/[id]" options={{ headerShown: true, title: 'Бронирование', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="chat/[id]" options={{ headerShown: true, title: 'Чат', headerBackTitle: 'Назад' }} />
+        <Stack.Screen name="chat/direct/[id]" options={{ headerShown: true, title: 'Чат', headerBackTitle: 'Назад' }} />
         <Stack.Screen name="call/[id]" options={{ presentation: 'fullScreenModal' }} />
       </Stack>
     </QueryClientProvider>

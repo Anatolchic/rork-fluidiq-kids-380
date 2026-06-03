@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { Fingerprint, Bell, LogOut, Send, Calendar, Copy } from 'lucide-react-native';
+import { Fingerprint, Bell, LogOut, Send, Calendar, Copy, Sun, Moon, Smartphone } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import supabase from '../lib/supabase';
 import { COLORS } from '../lib/constants';
@@ -12,6 +12,8 @@ import {
   saveCredentials, saveSessionTokens, clearCredentials,
 } from '../lib/biometric';
 import { useAuthStore } from '../stores/auth';
+import { useThemeStore } from '../stores/theme';
+import type { ThemeMode } from '../lib/theme';
 
 type Prefs = {
   push_enabled: boolean;
@@ -30,8 +32,16 @@ const EVENT_LABELS: { key: string; label: string }[] = [
   { key: 'review_left', label: 'Оставлен отзыв' },
 ];
 
+const THEME_OPTIONS: { value: ThemeMode; label: string; Icon: typeof Sun }[] = [
+  { value: 'system', label: 'Система', Icon: Smartphone },
+  { value: 'light', label: 'Светлая', Icon: Sun },
+  { value: 'dark', label: 'Тёмная', Icon: Moon },
+];
+
 export default function SettingsSection() {
   const { session, setSession, setProfile } = useAuthStore();
+  const themeMode = useThemeStore(s => s.mode);
+  const setThemeMode = useThemeStore(s => s.setMode);
   const [bioOn, setBioOn] = useState(false);
   const [bioSupported, setBioSupported] = useState(false);
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
@@ -166,6 +176,28 @@ export default function SettingsSection() {
 
   return (
     <View style={{ gap: 12 }}>
+      <View style={s.card}>
+        <Text style={s.title}>Тема оформления</Text>
+        <Text style={s.hint}>Выберите как должен выглядеть интерфейс. «Система» подстраивается под настройки устройства.</Text>
+        <View style={s.themeRow}>
+          {THEME_OPTIONS.map(opt => {
+            const active = themeMode === opt.value;
+            const Icon = opt.Icon;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[s.themeOption, active && s.themeOptionActive]}
+                onPress={() => setThemeMode(opt.value)}
+                activeOpacity={0.7}
+              >
+                <Icon size={18} color={active ? COLORS.primary : COLORS.textSecondary} />
+                <Text style={[s.themeOptionLabel, active && s.themeOptionLabelActive]}>{opt.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
       {Platform.OS !== 'web' && (
         <View style={s.card}>
           <Text style={s.title}>Безопасность</Text>
@@ -293,4 +325,17 @@ const s = StyleSheet.create({
   calBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   hintSmall: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 16 },
   logoutText: { color: COLORS.error, fontSize: 14, fontWeight: '600' },
+  themeRow: { flexDirection: 'row', gap: 8 },
+  themeOption: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 12, paddingHorizontal: 8,
+    backgroundColor: COLORS.background, borderRadius: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  themeOptionActive: {
+    backgroundColor: COLORS.primary + '15',
+    borderColor: COLORS.primary,
+  },
+  themeOptionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  themeOptionLabelActive: { color: COLORS.primary },
 });

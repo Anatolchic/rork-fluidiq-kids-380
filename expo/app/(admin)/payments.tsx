@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useResponsive } from '../../lib/responsive';
+import { ExportButton } from '../../components/ExportButton';
 
 export default function AdminPayments() {
   const [list, setList] = useState<any[]>([]);
@@ -40,7 +41,28 @@ export default function AdminPayments() {
   return (
     <SafeAreaView style={s.container}>
       <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
-        <Text style={s.title}>Платежи и комиссии</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+          <Text style={s.title}>Платежи и комиссии</Text>
+          <ExportButton
+            filename="payments.csv"
+            rows={list.map(p => ({
+              id: p.id,
+              booking_id: p.booking_id || '',
+              amount_kopecks: p.amount,
+              commission_kopecks: p.type === 'commission' ? p.amount : 0,
+              created_at: p.created_at,
+              status: p.status,
+            }))}
+            columns={[
+              { key: 'id' },
+              { key: 'booking_id' },
+              { key: 'amount_kopecks' },
+              { key: 'commission_kopecks' },
+              { key: 'created_at' },
+              { key: 'status' },
+            ]}
+          />
+        </View>
         <Text style={s.sub}>Сумма комиссий: <Text style={{ fontWeight: '800', color: COLORS.text }}>{(sum / 100).toLocaleString('ru')} ₽</Text></Text>
         <View style={s.filters}>
           {[

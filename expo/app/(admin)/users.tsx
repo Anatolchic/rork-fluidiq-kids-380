@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Pressable, SafeAreaView, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Search } from 'lucide-react-native';
+import { Search, Ban, ShieldCheck, Download, Check } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useResponsive } from '../../lib/responsive';
+import { ExportButton } from '../../components/ExportButton';
+import { useSelection } from '../../hooks/useSelection';
+import { BulkActionBar } from '../../components/BulkActionBar';
+import { downloadCSV } from '../../lib/csv-export';
 
 export default function AdminUsers() {
   const params = useLocalSearchParams<{ role?: string }>();
@@ -14,8 +18,60 @@ export default function AdminUsers() {
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<string | null>(params.role || null);
   const { contentMaxWidth } = useResponsive();
+  const sel = useSelection<any>(u => u.user_id);
 
   useEffect(() => { load(); }, [role]);
+
+  // При смене фильтра/поиска сбрасываем выделение, чтобы не оперировать
+  // невидимыми элементами.
+  useEffect(() => { sel.clear(); }, [role]);
+
+  async function runBulk(rpc: string, args: any, label: string) {
+    const ids = sel.ids;
+    if (ids.length === 0) return;
+    const { data, error } = await supabase.rpc(rpc, args);
+    if (error) {
+      Alert.alert('Ошибка', error.message);
+      return;
+    }
+    Alert.alert(label, `Обработано: ${data ?? ids.length}`);
+    sel.clear();
+    load();
+  }
+
+  function bulkBan() {
+    Alert.prompt?.(
+      'Бан пользователей',
+      `Причина бана для ${sel.count} пользователей:`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Забанить',
+          style: 'destructive',
+          onPress: (reason?: string) =>
+            runBulk('admin_bulk_ban', { p_user_ids: sel.ids, p_reason: reason || 'Нарушение правил' }, 'Забанено'),
+        },
+      ],
+      'plain-text',
+      'Нарушение правил',
+    ) ?? runBulk('admin_bulk_ban', { p_user_ids: sel.ids, p_reason: 'Нарушение правил' }, 'Забанено');
+  }
+
+  function bulkUnban() {
+    runBulk('admin_bulk_unban', { p_user_ids: sel.ids }, 'Сняты баны');
+  }
+
+  async function bulkExport() {
+    const rows = users.filter(u => sel.has(u.user_id));
+    await downloadCSV('users-selected.csv', rows, [
+      { key: 'email' },
+      { key: 'name', label: 'Имя' },
+      { key: 'role', label: 'Роль' },
+      { key: 'bookings_count', label: 'Брони' },
+      { key: 'created_at', label: 'Зарегистрирован' },
+    ]);
+    sel.clear();
+  }
 
   async function load() {
     setLoading(true);
@@ -29,7 +85,14 @@ export default function AdminUsers() {
   return (
     <SafeAreaView style={s.container}>
       <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
-        <Text style={s.title}>Пользователи</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+          <Text style={s.title}>Пользователи</Text>
+          <ExportButton
+            filename="users.csv"
+            rows={users}
+            columns={[{ key: 'email' }, { key: 'role' }, { key: 'created_at', label: 'Зарегистрирован' }]}
+          />
+        </View>
         <View style={s.searchRow}>
           <View style={s.searchBox}>
             <Search size={16} color={COLORS.textSecondary} />
@@ -63,27 +126,56 @@ export default function AdminUsers() {
           keyExtractor={i => i.user_id}
           contentContainerStyle={[s.list, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={s.card} onPress={() => router.push(`/admin-user/${item.user_id}`)}>
-              <View style={s.avatar}>
-                <Text style={s.avatarText}>{(item.name || item.email)?.charAt(0)?.toUpperCase() || '?'}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.name}>{item.name || '—'}</Text>
-                <Text style={s.email}>{item.email}</Text>
-                <View style={s.metaRow}>
-                  <View style={[s.rolePill, { backgroundColor: roleColor(item.role) + '20' }]}>
-                    <Text style={[s.rolePillText, { color: roleColor(item.role) }]}>{roleLabel(item.role)}</Text>
-                  </View>
-                  {item.is_published && <Text style={s.pubMark}>📡</Text>}
-                  {item.bookings_count > 0 && <Text style={s.meta}>{item.bookings_count} бронир.</Text>}
+          renderItem={({ item }) => {
+            const checked = sel.has(item.user_id);
+            const inSelectionMode = sel.count > 0;
+            return (
+              <Pressable
+                style={({ pressed }) => [
+                  s.card,
+                  checked && s.cardSelected,
+                  pressed && { transform: [{ scale: 0.97 }] },
+                ]}
+                onPress={() => {
+                  if (inSelectionMode) sel.toggle(item);
+                  else router.push(`/admin-user/${item.user_id}`);
+                }}
+                onLongPress={() => sel.toggle(item)}
+                delayLongPress={300}
+              >
+                <View style={[s.avatar, checked && { backgroundColor: COLORS.primary }]}>
+                  {checked ? (
+                    <Check size={20} color="#fff" />
+                  ) : (
+                    <Text style={s.avatarText}>{(item.name || item.email)?.charAt(0)?.toUpperCase() || '?'}</Text>
+                  )}
                 </View>
-              </View>
-            </TouchableOpacity>
-          )}
+                <View style={{ flex: 1 }}>
+                  <Text style={s.name}>{item.name || '—'}</Text>
+                  <Text style={s.email}>{item.email}</Text>
+                  <View style={s.metaRow}>
+                    <View style={[s.rolePill, { backgroundColor: roleColor(item.role) + '20' }]}>
+                      <Text style={[s.rolePillText, { color: roleColor(item.role) }]}>{roleLabel(item.role)}</Text>
+                    </View>
+                    {item.is_published && <Text style={s.pubMark}>📡</Text>}
+                    {item.bookings_count > 0 && <Text style={s.meta}>{item.bookings_count} бронир.</Text>}
+                  </View>
+                </View>
+              </Pressable>
+            );
+          }}
           ListEmptyComponent={<View style={s.empty}><Text style={s.dim}>Не найдено</Text></View>}
         />
       )}
+      <BulkActionBar
+        count={sel.count}
+        onClear={sel.clear}
+        actions={[
+          { label: 'Бан', icon: Ban, danger: true, onPress: bulkBan },
+          { label: 'Снять бан', icon: ShieldCheck, onPress: bulkUnban },
+          { label: 'CSV', icon: Download, onPress: bulkExport },
+        ]}
+      />
     </SafeAreaView>
   );
 }
@@ -104,7 +196,8 @@ const s = StyleSheet.create({
   chipTextActive: { color: '#fff', fontWeight: '600' },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 10 },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: COLORS.white, borderRadius: 12, padding: 12, alignItems: 'center' },
+  card: { flexDirection: 'row', gap: 12, backgroundColor: COLORS.white, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
+  cardSelected: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
   avatarText: { fontSize: 18, fontWeight: '700', color: COLORS.primary },
   name: { fontSize: 15, fontWeight: '700', color: COLORS.text },

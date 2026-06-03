@@ -8,6 +8,7 @@ import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
 import { useResponsive } from '../../lib/responsive';
+import SettingsSection from '../../components/SettingsSection';
 
 export default function AdminProfile() {
   const { session, setSession, setProfile } = useAuthStore();
@@ -134,6 +135,8 @@ export default function AdminProfile() {
             </View>
           ))}
         </View>
+
+        <SettingsSection />
 
         <TouchableOpacity style={s.logout} onPress={logout}>
           <Text style={s.logoutText}>Выйти из аккаунта</Text>

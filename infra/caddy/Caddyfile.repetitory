@@ -1,0 +1,145 @@
+# =============================================================================
+# Caddyfile для Репетиторов (продакшен на VPS 5.35.86.239, Beget, чистый RU-IP)
+# =============================================================================
+# Требует плагин mholt/caddy-ratelimit (см. INSTALL.md).
+# Auto-SSL Let's Encrypt включён по умолчанию для всех публичных hostname.
+# Все upstream Docker-сервисы слушают на 127.0.0.1 (наружу НЕ публикуются).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Глобальные опции
+# -----------------------------------------------------------------------------
+{
+	email anatolchic@gmail.com
+
+	# Сторадж rate_limit в памяти — переживает SIGHUP, но не рестарт процесса.
+	# Для распределённого режима поменять на redis (нам сейчас не нужно).
+	order rate_limit before reverse_proxy
+}
+
+# -----------------------------------------------------------------------------
+# Snippet: общие security-заголовки
+# -----------------------------------------------------------------------------
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+}
+
+# -----------------------------------------------------------------------------
+# Snippet: логирование (JSON в /var/log/caddy/<host>.log с ротацией)
+# -----------------------------------------------------------------------------
+(access_log) {
+	log {
+		output file /var/log/caddy/{args[0]}.log {
+			roll_size 50MiB
+			roll_keep 7
+			roll_keep_for 720h
+		}
+		format json
+		level INFO
+	}
+}
+
+# =============================================================================
+# supabase.repetitory-app.ru — self-hosted Supabase (Kong gateway)
+# =============================================================================
+# Архитектура rate_limit (mholt/caddy-ratelimit):
+#   - zone auth_brute   → /auth/v1/token, /auth/v1/signup, /auth/v1/recover,
+#                          /auth/v1/otp, /auth/v1/verify — 5 req/min/IP
+#   - zone rpc          → /rest/v1/rpc/*                  — 60 req/min/IP
+#   - остальное (REST, Storage, Realtime, Functions)      — БЕЗ лимита
+# =============================================================================
+supabase.repetitory-app.ru {
+	import security_headers
+	import access_log supabase
+
+	# CORS-headers Supabase отдаёт сам (Kong), мы не вмешиваемся.
+
+	# --- Зона 1: auth endpoints — жёсткий лимит против брутфорса паролей/OTP ---
+	@auth_brute {
+		path /auth/v1/token*
+		path /auth/v1/signup*
+		path /auth/v1/recover*
+		path /auth/v1/otp*
+		path /auth/v1/verify*
+		path /auth/v1/magiclink*
+	}
+	rate_limit @auth_brute {
+		zone auth_brute {
+			key    {http.request.remote.host}
+			events 5
+			window 1m
+		}
+	}
+
+	# --- Зона 2: RPC-функции — средний лимит против абуза бизнес-логики ---
+	@rpc {
+		path /rest/v1/rpc/*
+	}
+	rate_limit @rpc {
+		zone rpc {
+			key    {http.request.remote.host}
+			events 60
+			window 1m
+		}
+	}
+
+	# Всё остальное (REST CRUD, Storage, Realtime, Edge Functions) — без лимита,
+	# защита на уровне RLS и JWT.
+	reverse_proxy 127.0.0.1:8000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+
+		# Realtime WebSocket
+		transport http {
+			read_buffer  16384
+			write_buffer 16384
+		}
+	}
+}
+
+# =============================================================================
+# repetitory-app.ru — корневой лендинг (статика из /var/www/repetitory-web)
+# =============================================================================
+repetitory-app.ru {
+	import security_headers
+	import access_log repetitory-app
+
+	root * /var/www/repetitory-web
+	encode zstd gzip
+	try_files {path} {path}/ /index.html
+	file_server
+
+	# Долгий кэш для immutable-ассетов
+	@assets path /assets/* /static/* *.js *.css *.woff2 *.svg *.png *.jpg *.webp
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}
+
+# www-редирект на apex
+www.repetitory-app.ru {
+	redir https://repetitory-app.ru{uri} permanent
+}
+
+# =============================================================================
+# web.repetitory-app.ru — Expo Web build (RN приложение в браузере)
+# =============================================================================
+web.repetitory-app.ru {
+	import security_headers
+	import access_log repetitory-web
+
+	root * /var/www/repetitory-expo-web
+	encode zstd gzip
+	try_files {path} /index.html
+	file_server
+
+	@assets path /assets/* /_expo/* *.js *.css *.woff2 *.svg *.png *.jpg *.webp
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}

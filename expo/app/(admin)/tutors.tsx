@@ -5,6 +5,7 @@ import { Eye, EyeOff, Star } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useResponsive } from '../../lib/responsive';
+import { ExportButton } from '../../components/ExportButton';
 
 export default function AdminTutors() {
   const [list, setList] = useState<any[]>([]);
@@ -35,7 +36,14 @@ export default function AdminTutors() {
   return (
     <SafeAreaView style={s.container}>
       <View style={[s.header, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
-        <Text style={s.title}>Репетиторы</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+          <Text style={s.title}>Репетиторы</Text>
+          <ExportButton
+            filename="tutors.csv"
+            rows={list}
+            columns={[{ key: 'name' }, { key: 'email' }, { key: 'rating' }, { key: 'lessons_count' }]}
+          />
+        </View>
         <View style={s.filters}>
           {[
             { k: 'all', l: `Все · ${list.length}` },

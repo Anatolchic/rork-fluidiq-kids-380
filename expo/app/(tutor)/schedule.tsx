@@ -198,6 +198,7 @@ export default function TutorSchedule() {
                 <Text style={s.dateTitle}>{format(selectedDate, 'd MMMM, EEEE', { locale: ruLocale })}</Text>
               </View>
               <Pressable
+                testID="add-slot-btn"
                 style={({ pressed }) => [s.addBtn, { transform: [{ scale: pressed ? 0.96 : 1 }] }]}
                 onPress={() => setAddOpen(true)}
               >

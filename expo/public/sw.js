@@ -28,3 +28,41 @@ self.addEventListener('fetch', (e) => {
   }
   e.respondWith(fetch(req).catch(() => caches.match(req).then(hit => hit || caches.match('/'))));
 });
+
+// --- Web Push -----------------------------------------------------------
+// Полезная нагрузка приходит как JSON: { title, body, icon, badge, data, tag, url }.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    payload = { title: 'Репетитори', body: event.data ? event.data.text() : '' };
+  }
+  const title = payload.title || 'Репетитори';
+  const url = payload.url || (payload.data && payload.data.url) || '/';
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/favicon.ico',
+    badge: payload.badge || '/favicon.ico',
+    tag: payload.tag,
+    data: Object.assign({ url }, payload.data || {}),
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if ('focus' in c) {
+          try { c.navigate(targetUrl); } catch (_) {}
+          return c.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      return undefined;
+    })
+  );
+});
