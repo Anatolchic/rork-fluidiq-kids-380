@@ -8,6 +8,7 @@ import supabase from '../lib/supabase';
 import { registerForPushNotifications, savePushToken } from '../lib/notifications';
 import { useAuthStore } from '../stores/auth';
 import { COLORS } from '../lib/constants';
+import { VpnNotice } from '../components/VpnNotice';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -117,7 +118,8 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
+      <VpnNotice />
+      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(student)" />
         <Stack.Screen name="(tutor)" />

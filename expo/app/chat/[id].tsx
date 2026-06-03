@@ -12,6 +12,9 @@ import { Message } from '../../lib/types';
 import { ru } from '../../lib/errors';
 import { useAuthStore } from '../../stores/auth';
 import { useResponsive } from '../../lib/responsive';
+import { AttachmentBar } from '../../components/AttachmentBar';
+import { AttachmentView } from '../../components/AttachmentView';
+import { MessageStatus } from '../../components/MessageStatus';
 
 const REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢', '🙏'];
 
@@ -334,8 +337,13 @@ export default function ChatScreen() {
 
         {isDeleted ? (
           <Text style={[styles.deletedText, isOwn && styles.deletedTextOwn]}>Сообщение удалено</Text>
-        ) : item.type === 'image' && item.file_url ? (
-          <Image source={{ uri: item.file_url }} style={styles.attachImg} resizeMode="cover" />
+        ) : item.file_url ? (
+          <>
+            <AttachmentView fileUrl={item.file_url} fileName={item.file_name} type={item.type} isOwn={isOwn} />
+            {item.content && !item.content.startsWith('📷') && !item.content.startsWith('📎') && (
+              <Text style={[styles.msgText, isOwn && styles.msgTextOwn, { marginTop: 6 }]}>{item.content}</Text>
+            )}
+          </>
         ) : (
           <Text style={[styles.msgText, isOwn && styles.msgTextOwn]}>{item.content}</Text>
         )}
@@ -343,7 +351,7 @@ export default function ChatScreen() {
         <View style={styles.metaRow}>
           {isEdited && <Text style={[styles.editedTag, isOwn && styles.editedTagOwn]}>изменено</Text>}
           <Text style={[styles.time, isOwn && styles.timeOwn]}>{format(new Date(item.created_at), 'HH:mm')}</Text>
-          {isOwn && !isDeleted && <Text style={[styles.readMark, { color: isRead ? '#3ddc84' : '#ffffff80' }]}>{isRead ? '✓✓' : '✓'}</Text>}
+          {isOwn && !isDeleted && <View style={{ marginLeft: 4 }}><MessageStatus read={isRead} light={isOwn} /></View>}
         </View>
 
         {!isDeleted && emojiAgg.size > 0 && (
@@ -475,9 +483,24 @@ export default function ChatScreen() {
         )}
 
         <View style={styles.inputBar}>
-          <TouchableOpacity style={styles.attachBtn} onPress={attachImage} disabled={uploading || !!editingId}>
-            {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <Paperclip size={20} color={editingId ? COLORS.textSecondary : COLORS.primary} />}
-          </TouchableOpacity>
+          {session && !editingId ? (
+            <AttachmentBar
+              ownerId={session.user.id}
+              onUploaded={async (att) => {
+                const payload: any = {
+                  room_id: roomId, sender_id: session.user.id,
+                  content: att.type === 'image' ? '📷 Фото' : `📎 ${att.file_name}`,
+                  type: att.type, file_url: att.file_url, file_name: att.file_name,
+                };
+                if (replyTo) payload.reply_to_id = replyTo.id;
+                const { error } = await supabase.from('messages').insert(payload);
+                if (error) Alert.alert('Не удалось отправить', ru(error));
+                else setReplyTo(null);
+              }}
+            />
+          ) : (
+            <View style={styles.attachBtn} />
+          )}
           <TextInput
             testID="chat-input"
             style={styles.input}
