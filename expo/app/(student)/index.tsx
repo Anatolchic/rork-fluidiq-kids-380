@@ -169,13 +169,15 @@ export default function StudentCatalog() {
                   <Text style={styles.heroTitle}>репетитора</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
-                  <TouchableOpacity
-                    style={styles.heroBell}
-                    onPress={() => router.push('/(student)/favorites')}
-                    accessibilityLabel="Избранное"
-                  >
-                    <Heart size={22} color="#fff" fill="#ffffff44" />
-                  </TouchableOpacity>
+                  <View style={styles.heroBell}>
+                    <TouchableOpacity
+                      style={styles.heroIconBtn}
+                      onPress={() => router.push('/(student)/favorites')}
+                      accessibilityLabel="Избранное"
+                    >
+                      <Heart size={22} color="#fff" fill="#ffffff44" />
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.heroBell}>
                     <NotificationBell />
                   </View>
@@ -584,6 +586,7 @@ const styles = StyleSheet.create({
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'center' },
   heroBell: { backgroundColor: '#ffffff22', borderRadius: 14, padding: 6 },
+  heroIconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 20 },
   heroEyebrow: { color: '#ffffffcc', fontSize: 14, fontWeight: '600', letterSpacing: 0.3 },
   heroTitle: { color: '#fff', fontSize: 30, fontWeight: '800', letterSpacing: -0.5, marginTop: 2 },
   heroIconWrap: { position: 'absolute', right: -10, bottom: -20 },
