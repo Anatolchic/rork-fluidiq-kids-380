@@ -46,7 +46,7 @@ export default function AdminSettings() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={[s.scroll, isDesktop ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : null]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.scroll, isDesktop ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : null]}>
         <Text style={s.title}>Настройки платформы</Text>
 
         <View style={s.card}>

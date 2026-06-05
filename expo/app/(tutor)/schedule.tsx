@@ -162,7 +162,7 @@ export default function TutorSchedule() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth }]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth }]}>
         <View style={s.headerWrap}>
           <Text style={s.title}>Расписание</Text>
           <View style={s.legend}>

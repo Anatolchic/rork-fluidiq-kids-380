@@ -131,7 +131,7 @@ export default function TutorSetup() {
           <Text style={styles.stepLabel}>Шаг {step} из {STEPS}</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {step === 1 && (
             <View style={styles.section}>
               <Text style={styles.title}>Имя и фото</Text>
@@ -352,7 +352,7 @@ export default function TutorSetup() {
               </Pressable>
             )}
           </View>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.modalScroll}>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={styles.modalScroll}>
             {modalGroups.map(cat => (
               <View key={cat.key} style={styles.modalGroup}>
                 <Text style={styles.modalGroupTitle}>{cat.emoji}  {cat.label}</Text>

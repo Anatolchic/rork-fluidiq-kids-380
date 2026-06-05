@@ -48,7 +48,7 @@ export default function StudentProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
         <View style={isDesktop ? styles.twoCols : undefined}>
           <View style={isDesktop ? styles.colLeft : undefined}>
             <View style={styles.avatarSection}>

@@ -351,7 +351,7 @@ export default function VerificationScreen() {
               <X size={22} color={COLORS.text} />
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={s.modalScroll}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.modalScroll}>
             <Text style={s.label}>Тип документа</Text>
             <View style={s.kindRow}>
               {(['passport', 'diploma', 'certificate', 'other'] as Cert['kind'][]).map(k => (

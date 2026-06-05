@@ -107,7 +107,7 @@ export default function TutorWallet() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
         <View style={styles.header}>
           <Text style={styles.title}>Кошелёк</Text>
         </View>

@@ -119,7 +119,7 @@ export default function AdminTickets() {
               ))}
             </View>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 10 }}>
             <View style={s.msgUser}><Text style={s.msgText}>{open?.body}</Text></View>
             {replies.map(r => (
               <View key={r.id} style={r.is_admin_reply ? s.msgAdmin : s.msgUser}>

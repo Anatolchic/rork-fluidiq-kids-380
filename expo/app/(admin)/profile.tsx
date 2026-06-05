@@ -89,7 +89,7 @@ export default function AdminProfile() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
         <Text style={s.title}>Профиль администратора</Text>
 
         <View style={s.card}>

@@ -243,7 +243,7 @@ export default function BookingNew() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]} keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Запись к репетитору</Text>
           <View style={styles.tutorRow}>
             <User size={14} color={COLORS.textSecondary} />

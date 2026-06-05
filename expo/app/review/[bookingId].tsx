@@ -57,7 +57,7 @@ export default function ReviewScreen() {
   return (
     <SafeAreaView style={s.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={s.scroll}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.scroll}>
           <Text style={s.title}>Оцените урок</Text>
           <Text style={s.sub}>{booking.subject} с {booking.tutor?.name || 'репетитор'}</Text>
 

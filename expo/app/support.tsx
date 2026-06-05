@@ -124,7 +124,7 @@ export default function SupportScreen() {
             <Text style={s.modalTitle}>{openTicket?.subject}</Text>
             <TouchableOpacity onPress={() => setOpenTicket(null)}><X size={22} color={COLORS.text} /></TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 10 }}>
             <View style={s.msgUser}><Text style={s.msgText}>{openTicket?.body}</Text></View>
             {replies.map(r => (
               <View key={r.id} style={r.is_admin_reply ? s.msgAdmin : s.msgUser}>

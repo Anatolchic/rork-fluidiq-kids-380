@@ -86,7 +86,7 @@ export default function TutorProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
         <Text style={styles.title}>Профиль</Text>
 
         <View style={styles.card}>
