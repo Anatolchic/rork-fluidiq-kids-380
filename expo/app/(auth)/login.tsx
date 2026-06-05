@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Alert, Pressable, ScrollView,
+  Platform, ActivityIndicator, Alert, Pressable, ScrollView, Linking, TouchableOpacity,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Fingerprint, GraduationCap, Mail, Lock } from 'lucide-react-native';
+import { Fingerprint, GraduationCap, Mail, Lock, Eye, EyeOff, Check } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useResponsive } from '../../lib/responsive';
@@ -15,9 +15,16 @@ import {
   getCredentials, saveCredentials, saveSessionTokens, setBiometricPrompted, wasBiometricPrompted,
 } from '../../lib/biometric';
 
+type Mode = 'login' | 'register';
+
 export default function LoginScreen() {
+  const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
@@ -39,8 +46,6 @@ export default function LoginScreen() {
     if (!email || !password) { Alert.alert('Заполните все поля'); return; }
     setLoading(true);
 
-    // Hard timeout 15s — supabase-js может зависнуть на сохранении сессии
-    // (наблюдалось в проде: кнопка крутится бесконечно)
     let resp: any = null;
     let timedOut = false;
     try {
@@ -59,15 +64,12 @@ export default function LoginScreen() {
     if (error) { Alert.alert('Ошибка входа', ru(error)); return; }
     if (!data?.session) { Alert.alert('Ошибка входа', 'Сессия не получена'); return; }
 
-    // Web: после успешного логина onAuthStateChange в _layout сам сделает
-    // router.replace на нужный кабинет. На всякий случай дублируем — если
-    // listener не сработал
     if (Platform.OS === 'web') {
       setTimeout(() => router.replace('/'), 100);
       return;
     }
 
-    if (Platform.OS !== 'web' && data.session) {
+    if (data.session) {
       const supported = await isBiometricSupported();
       const userId = data.user?.id ?? null;
       const alreadyPrompted = await wasBiometricPrompted(userId);
@@ -92,6 +94,28 @@ export default function LoginScreen() {
     }
   }
 
+  async function handleRegister() {
+    if (!email || !password || !confirmPassword) { Alert.alert('Заполните все поля'); return; }
+    if (password !== confirmPassword) { Alert.alert('Пароли не совпадают'); return; }
+    if (password.length < 6) { Alert.alert('Пароль', 'Минимум 6 символов'); return; }
+    if (!agreed) { Alert.alert('Согласие', 'Подтвердите согласие с условиями и политикой обработки персональных данных'); return; }
+
+    setLoading(true);
+    const origin = typeof window !== 'undefined' ? (window as any).location?.origin : 'https://web.repetitory-app.ru';
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: `${origin}/(auth)/role-select` },
+    });
+    setLoading(false);
+    if (error) { Alert.alert('Ошибка', ru(error)); return; }
+    if (data.session) {
+      router.replace('/(auth)/role-select');
+    } else {
+      router.replace({ pathname: '/(auth)/verify-email', params: { email } });
+    }
+  }
+
   async function handleBioLogin() {
     const auth = await authenticate('Войти в Репетиторы');
     if (!auth.success) {
@@ -106,6 +130,8 @@ export default function LoginScreen() {
     if (error) Alert.alert('Ошибка входа', ru(error));
   }
 
+  const isRegister = mode === 'register';
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -118,98 +144,144 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-        <View style={styles.header}>
-          <LinearGradient
-            colors={[COLORS.primary, '#8B7FFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoWrap}
-          >
-            <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
-          </LinearGradient>
-          <Text style={styles.title}>Репетиторы</Text>
-        </View>
-
-        <View style={styles.authTabs}>
-          <View style={[styles.authTab, styles.authTabActive]}>
-            <Text style={styles.authTabTextActive}>Вход</Text>
-          </View>
-          <Pressable
-            style={({ pressed }) => [styles.authTab, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={() => router.replace('/(auth)/register')}
-          >
-            <Text style={styles.authTabText}>Регистрация</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.form}>
-          <View style={styles.inputWrap}>
-            <Mail size={18} color={COLORS.textSecondary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-          </View>
-
-          <View style={styles.inputWrap}>
-            <Lock size={18} color={COLORS.textSecondary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Пароль"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={COLORS.textSecondary}
-            />
-          </View>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.btnPrimaryWrap,
-              { transform: [{ scale: pressed ? 0.98 : 1 }] },
-            ]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
+          <View style={styles.header}>
             <LinearGradient
               colors={[COLORS.primary, '#8B7FFF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.btnPrimary}
-              pointerEvents="none"
+              style={styles.logoWrap}
             >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Войти</Text>}
+              <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
             </LinearGradient>
-          </Pressable>
+            <Text style={styles.title}>Репетиторы</Text>
+          </View>
 
-          <Pressable
-            onPress={() => router.push('/(auth)/forgot-password')}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-          >
-            <Text style={styles.forgotLink}>Забыли пароль?</Text>
-          </Pressable>
+          <View style={styles.authTabs}>
+            <Pressable
+              style={({ pressed }) => [styles.authTab, !isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => setMode('login')}
+            >
+              <Text style={!isRegister ? styles.authTabTextActive : styles.authTabText}>Вход</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.authTab, isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => setMode('register')}
+            >
+              <Text style={isRegister ? styles.authTabTextActive : styles.authTabText}>Регистрация</Text>
+            </Pressable>
+          </View>
 
-          {bioEnabled && Platform.OS !== 'web' && (
+          <View style={styles.form}>
+            <View style={styles.inputWrap}>
+              <Mail size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+            </View>
+
+            <View style={styles.inputWrap}>
+              <Lock size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Пароль"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPass}
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity onPress={() => setShowPass(v => !v)} hitSlop={10} style={styles.eyeBtn}>
+                {showPass ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+              </TouchableOpacity>
+            </View>
+
+            {isRegister && (
+              <>
+                <View style={styles.inputWrap}>
+                  <Lock size={18} color={COLORS.textSecondary} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Повторите пароль"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirm}
+                    placeholderTextColor={COLORS.textSecondary}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
+                    {showConfirm ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(v => !v)} activeOpacity={0.7}>
+                  <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+                    {agreed && <Check size={14} color="#fff" strokeWidth={3} />}
+                  </View>
+                  <Text style={styles.agreeText}>
+                    Я согласен с{' '}
+                    <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/terms.html')}>
+                      условиями использования
+                    </Text>
+                    {' '}и{' '}
+                    <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/privacy.html')}>
+                      политикой обработки персональных данных
+                    </Text>
+                    {' '}(ФЗ-152)
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+
             <Pressable
               style={({ pressed }) => [
-                styles.btnBio,
+                styles.btnPrimaryWrap,
+                (isRegister && !agreed) && { opacity: 0.5 },
                 { transform: [{ scale: pressed ? 0.98 : 1 }] },
               ]}
-              onPress={handleBioLogin}
-              disabled={loading}
+              onPress={isRegister ? handleRegister : handleLogin}
+              disabled={loading || (isRegister && !agreed)}
             >
-              <Fingerprint size={20} color={COLORS.primary} />
-              <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
+              <LinearGradient
+                colors={[COLORS.primary, '#8B7FFF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.btnPrimary}
+                pointerEvents="none"
+              >
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>}
+              </LinearGradient>
             </Pressable>
-          )}
-        </View>
 
+            {!isRegister && (
+              <Pressable
+                onPress={() => router.push('/(auth)/forgot-password')}
+                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+              >
+                <Text style={styles.forgotLink}>Забыли пароль?</Text>
+              </Pressable>
+            )}
+
+            {!isRegister && bioEnabled && Platform.OS !== 'web' && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.btnBio,
+                  { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                ]}
+                onPress={handleBioLogin}
+                disabled={loading}
+              >
+                <Fingerprint size={20} color={COLORS.primary} />
+                <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
+              </Pressable>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -227,7 +299,7 @@ const cardShadow = {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   inner: { flex: 1, padding: 28, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
-  header: { alignItems: 'center', marginBottom: 40 },
+  header: { alignItems: 'center', marginBottom: 30 },
   logoWrap: {
     width: 88, height: 88, borderRadius: 28,
     justifyContent: 'center', alignItems: 'center',
@@ -252,6 +324,7 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   input: { flex: 1, fontSize: 16, color: COLORS.text },
+  eyeBtn: { padding: 4 },
   btnPrimaryWrap: { marginTop: 6, borderRadius: 16, ...cardShadow },
   btnPrimary: { height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
@@ -263,12 +336,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 8, marginTop: 4,
   },
   btnBioText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
   authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, marginBottom: 20, ...cardShadow },
   authTab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
   authTabActive: { backgroundColor: COLORS.primary + '15' },
   authTabText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '700' },
   authTabTextActive: { color: COLORS.primary, fontSize: 15, fontWeight: '800' },
-  footerText: { color: COLORS.textSecondary, fontSize: 14 },
-  footerLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5,
+    borderColor: COLORS.border, backgroundColor: COLORS.white,
+    justifyContent: 'center', alignItems: 'center', marginTop: 2,
+  },
+  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  agreeText: { flex: 1, fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
+  agreeLink: { color: COLORS.primary, fontWeight: '700' },
 });
