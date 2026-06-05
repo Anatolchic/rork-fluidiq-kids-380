@@ -5,13 +5,16 @@
       <stop offset="100%" stop-color="#8B7FFF"/>
     </linearGradient>
   </defs>
-  <!-- Скругленный квадрат фон с градиентом -->
+  <!-- Скруглённый квадрат фон с градиентом -->
   <rect x="0" y="0" width="1024" height="1024" rx="280" ry="280" fill="url(#g)"/>
 
-  <!-- Шапочка выпускника (lucide GraduationCap), масштаб 24→640 px, центрирована -->
-  <!-- Корпус шапочки (плоскость): трапециевидный ромб над головой -->
-  <g transform="translate(192,212) scale(26.67)" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Верхняя пластина -->
+  <!-- Шапочка выпускника (lucide GraduationCap), 24px иконка → scale 36.25 ≈ 87% от 1024.
+       Центрирование: translate ((1024 - 870)/2, (1024 - 870)/2) = (77, 77).
+       Иконка lucide использует viewBox 0..24, а её path начинается ~y=5 (верхняя пластина),
+       заканчивается ~y=18 (дужка), т.е. вертикальный диапазон ~13/24. Чтобы оптически
+       центрировать, поднимем чуть вверх. -->
+  <g transform="translate(77,107) scale(36.25)" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Верхняя плоская пластина шапки -->
     <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/>
     <!-- Кисточка (правая сторона) -->
     <path d="M22 10v6"/>
