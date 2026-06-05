@@ -32,17 +32,14 @@ export default function LoginScreen() {
 
   useEffect(() => {
     (async () => {
-      const [enabled, kind, supported, creds] = await Promise.all([
-        isBiometricEnabled(),
+      const [kind, supported] = await Promise.all([
         getBiometricKind(),
         isBiometricSupported(),
-        getCredentials(),
       ]);
-      // Показываем биометрию если: устройство поддерживает И
-      // либо юзер уже включил её (enabled), либо есть сохранённые
-      // креды от прошлого логина (creds). Это даёт второй шанс
-      // включить биометрию если SecureStore флаг enabled потерялся.
-      setBioEnabled(supported && (enabled || !!creds));
+      // На native показываем кнопку биометрии всегда, если устройство
+      // поддерживает Face ID/Touch ID. Если креды не сохранены — кнопка
+      // подскажет сначала войти по паролю.
+      setBioEnabled(supported);
       setBioKind(kind);
     })();
   }, []);
