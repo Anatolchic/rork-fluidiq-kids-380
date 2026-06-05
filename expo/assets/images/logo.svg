@@ -1,36 +1,21 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- Speech bubble: rounded rectangle with tail at bottom-left -->
-  <path d="
-    M 200 140
-    L 824 140
-    Q 904 140 904 220
-    L 904 720
-    Q 904 800 824 800
-    L 400 800
-    L 280 920
-    L 320 800
-    L 200 800
-    Q 120 800 120 720
-    L 120 220
-    Q 120 140 200 140
-    Z
-  " fill="#6C63FF"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6C63FF"/>
+      <stop offset="100%" stop-color="#8B7FFF"/>
+    </linearGradient>
+  </defs>
+  <!-- Скругленный квадрат фон с градиентом -->
+  <rect x="0" y="0" width="1024" height="1024" rx="280" ry="280" fill="url(#g)"/>
 
-  <!-- Cyrillic Р -->
-  <path d="
-    M 410 290
-    L 600 290
-    Q 720 290 720 410
-    Q 720 530 600 530
-    L 510 530
-    L 510 700
-    L 410 700
-    Z
-    M 510 370
-    L 600 370
-    Q 640 370 640 410
-    Q 640 450 600 450
-    L 510 450
-    Z
-  " fill="#FFFFFF" fill-rule="evenodd"/>
+  <!-- Шапочка выпускника (lucide GraduationCap), масштаб 24→640 px, центрирована -->
+  <!-- Корпус шапочки (плоскость): трапециевидный ромб над головой -->
+  <g transform="translate(192,212) scale(26.67)" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Верхняя пластина -->
+    <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/>
+    <!-- Кисточка (правая сторона) -->
+    <path d="M22 10v6"/>
+    <!-- Дужка под пластиной -->
+    <path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>
+  </g>
 </svg>

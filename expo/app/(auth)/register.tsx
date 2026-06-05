@@ -73,26 +73,34 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
-        <ScrollView showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.inner}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Pressable
-              onPress={() => router.back()}
-              style={({ pressed }) => [styles.back, { opacity: pressed ? 0.5 : 1 }]}
-            >
-              <ArrowLeft size={18} color={COLORS.primary} />
-              <Text style={styles.backText}>Назад</Text>
-            </Pressable>
             <LinearGradient
               colors={[COLORS.primary, '#8B7FFF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.logoWrap}
             >
-              <GraduationCap size={54} color="#fff" strokeWidth={2.2} />
+              <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
             </LinearGradient>
-            <Text style={styles.title}>Регистрация</Text>
-            <Text style={styles.subtitle}>Создайте новый аккаунт</Text>
+            <Text style={styles.title}>Репетиторы</Text>
+          </View>
+
+          <View style={styles.authTabs}>
+            <Pressable
+              style={({ pressed }) => [styles.authTab, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={() => router.replace('/(auth)/login')}
+            >
+              <Text style={styles.authTabText}>Вход</Text>
+            </Pressable>
+            <View style={[styles.authTab, styles.authTabActive]}>
+              <Text style={styles.authTabTextActive}>Регистрация</Text>
+            </View>
           </View>
 
           <View style={styles.form}>
@@ -162,12 +170,6 @@ export default function RegisterScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Уже есть аккаунт? </Text>
-            <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
-              <Text style={styles.footerLink}>Войти</Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -194,22 +196,27 @@ const cardShadow = {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   inner: { flex: 1, padding: 24, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
-  header: { marginBottom: 24, alignItems: 'flex-start' },
+  header: { marginBottom: 24, alignItems: 'center' },
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 },
   backText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
   logoWrap: {
-    width: 64, height: 64, borderRadius: 20,
+    width: 88, height: 88, borderRadius: 28,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  title: { fontSize: 30, fontWeight: '800', color: COLORS.text, marginBottom: 4, letterSpacing: -0.5 },
+  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
   subtitle: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
   form: { gap: 14 },
+  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, marginBottom: 20, shadowColor: '#0006', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 3 },
+  authTab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
+  authTabActive: { backgroundColor: COLORS.primary + '15' },
+  authTabText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '700' },
+  authTabTextActive: { color: COLORS.primary, fontSize: 15, fontWeight: '800' },
   label: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
   input: {
     height: 56, borderRadius: 16, paddingHorizontal: 18, fontSize: 16,

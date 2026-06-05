@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Alert, Pressable,
+  Platform, ActivityIndicator, Alert, Pressable, ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -108,7 +108,16 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.inner, { maxWidth: 480 }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.inner, { maxWidth: 480 }]}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 20 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.header}>
           <LinearGradient
             colors={[COLORS.primary, '#8B7FFF']}
@@ -119,7 +128,18 @@ export default function LoginScreen() {
             <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
           </LinearGradient>
           <Text style={styles.title}>Репетиторы</Text>
-          <Text style={styles.subtitle}>Войдите в свой аккаунт</Text>
+        </View>
+
+        <View style={styles.authTabs}>
+          <View style={[styles.authTab, styles.authTabActive]}>
+            <Text style={styles.authTabTextActive}>Вход</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.authTab, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => router.replace('/(auth)/register')}
+          >
+            <Text style={styles.authTabText}>Регистрация</Text>
+          </Pressable>
         </View>
 
         <View style={styles.form}>
@@ -190,15 +210,7 @@ export default function LoginScreen() {
           )}
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Нет аккаунта? </Text>
-          <Pressable
-            onPress={() => router.push('/(auth)/register')}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-          >
-            <Text style={styles.footerLink}>Зарегистрироваться</Text>
-          </Pressable>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -252,6 +264,11 @@ const styles = StyleSheet.create({
   },
   btnBioText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
+  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, marginBottom: 20, ...cardShadow },
+  authTab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
+  authTabActive: { backgroundColor: COLORS.primary + '15' },
+  authTabText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '700' },
+  authTabTextActive: { color: COLORS.primary, fontSize: 15, fontWeight: '800' },
   footerText: { color: COLORS.textSecondary, fontSize: 14 },
   footerLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
 });
