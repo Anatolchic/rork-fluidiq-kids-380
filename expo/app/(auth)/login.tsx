@@ -142,7 +142,7 @@ export default function LoginScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingTop: 40, paddingBottom: 40 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 20 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -173,7 +173,7 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.form}>
+          <View style={[styles.form, { minHeight: 380 }]}>
             <View style={styles.inputWrap}>
               <Mail size={18} color={COLORS.textSecondary} />
               <TextInput
