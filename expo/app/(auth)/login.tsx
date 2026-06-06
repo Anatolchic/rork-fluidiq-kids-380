@@ -103,6 +103,22 @@ export default function LoginScreen() {
     if (!agreed) { Alert.alert('Согласие', 'Подтвердите согласие с условиями и политикой обработки персональных данных'); return; }
 
     setLoading(true);
+
+    // Проверяем заранее — есть ли подтверждённый аккаунт с таким email
+    const check = await supabase.rpc('check_email_exists', { p_email: email.trim() });
+    if (check.data && check.data.exists && check.data.confirmed) {
+      setLoading(false);
+      Alert.alert(
+        'Такой email уже зарегистрирован',
+        'Войдите по паролю или восстановите его через «Забыли пароль?»',
+        [
+          { text: 'Восстановить пароль', onPress: () => router.push('/(auth)/forgot-password') },
+          { text: 'Войти', onPress: () => setMode('login') },
+        ]
+      );
+      return;
+    }
+
     const origin = typeof window !== 'undefined' ? (window as any).location?.origin : 'https://web.repetitory-app.ru';
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
