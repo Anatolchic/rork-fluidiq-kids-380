@@ -95,7 +95,7 @@ export default function ResetPassword() {
               <TextInput
                 key={i}
                 ref={el => { inputsRef.current[i] = el; }}
-                style={[s.cell, code[i] && s.cellFilled]}
+                style={[s.cell, code[i] && s.cellFilled, Platform.OS === 'web' && { outlineWidth: 0 } as any]}
                 value={code[i]}
                 onChangeText={v => handleChange(i, v)}
                 onKeyPress={e => handleKey(i, e.nativeEvent.key)}
@@ -175,9 +175,9 @@ const s = StyleSheet.create({
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
   sub: { fontSize: 14, color: COLORS.textSecondary },
   email: { fontSize: 14, color: COLORS.text, fontWeight: '700', marginTop: 4 },
-  codeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 14 },
+  codeRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 14, maxWidth: 360, alignSelf: 'center', width: '100%' },
   cell: {
-    flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.border,
+    width: 48, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.border,
     backgroundColor: COLORS.white, textAlign: 'center', fontSize: 22, fontWeight: '800',
     color: COLORS.primary,
   },

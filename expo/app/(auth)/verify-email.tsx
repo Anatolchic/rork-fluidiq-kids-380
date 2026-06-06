@@ -95,7 +95,7 @@ export default function VerifyEmail() {
               <TextInput
                 key={i}
                 ref={el => { inputsRef.current[i] = el; }}
-                style={[styles.cell, code[i] && styles.cellFilled]}
+                style={[styles.cell, code[i] && styles.cellFilled, Platform.OS === 'web' && { outlineWidth: 0 } as any]}
                 value={code[i]}
                 onChangeText={v => handleChange(i, v)}
                 onKeyPress={e => handleKey(i, e.nativeEvent.key)}
@@ -148,10 +148,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 8, letterSpacing: -0.5 },
   sub: { fontSize: 14, color: COLORS.textSecondary },
   email: { fontSize: 15, color: COLORS.text, fontWeight: '700', marginTop: 4 },
-  codeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 18 },
+  codeRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 18, maxWidth: 360, alignSelf: 'center', width: '100%' },
   cell: {
-    flex: 1, height: 64, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.border,
-    backgroundColor: COLORS.white, textAlign: 'center', fontSize: 26, fontWeight: '800',
+    width: 48, height: 56, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.border,
+    backgroundColor: COLORS.white, textAlign: 'center', fontSize: 24, fontWeight: '800',
     color: COLORS.primary,
   },
   cellFilled: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '08' },
