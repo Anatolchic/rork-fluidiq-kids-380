@@ -1,76 +1,82 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { GraduationCap, Mail } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
-import { useResponsive } from '../../lib/responsive';
+import { ru } from '../../lib/errors';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  useResponsive();
 
   async function submit() {
     if (!email.trim()) { Alert.alert('Введите email'); return; }
     setLoading(true);
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://web.repetitory-app.ru';
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${origin}/(auth)/reset-password`,
-    });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
     setLoading(false);
-    if (error) { Alert.alert('Ошибка', error.message); return; }
-    setSent(true);
+    if (error) { Alert.alert('Ошибка', ru(error)); return; }
+    router.replace({ pathname: '/(auth)/reset-password', params: { email: email.trim() } });
   }
 
   return (
     <SafeAreaView style={s.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={[s.content, { maxWidth: 480, alignSelf: 'center', width: '100%' }]}>
-          <Text style={s.title}>Восстановление пароля</Text>
-          {!sent ? (
-            <>
-              <Text style={s.sub}>Введите email — мы отправим ссылку для сброса пароля</Text>
-              <TextInput
-                style={s.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="your@email.com"
-                placeholderTextColor={COLORS.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-              <TouchableOpacity style={[s.btn, (loading || !email) && { opacity: 0.5 }]} disabled={loading || !email} onPress={submit}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Отправить ссылку</Text>}
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={s.successBox}>
-              <Text style={s.successEmoji}>📧</Text>
-              <Text style={s.successTitle}>Письмо отправлено</Text>
-              <Text style={s.successSub}>Проверьте почту {email}. Если письма нет — посмотрите в «Спам».</Text>
-            </View>
-          )}
-          <TouchableOpacity onPress={() => router.back()}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.inner}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }} keyboardShouldPersistTaps="handled">
+          <View style={s.header}>
+            <LinearGradient colors={[COLORS.primary, '#8B7FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.logoWrap}>
+              <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
+            </LinearGradient>
+            <Text style={s.title}>Восстановление пароля</Text>
+            <Text style={s.sub}>Введите email — отправим код для сброса пароля</Text>
+          </View>
+
+          <View style={s.inputWrap}>
+            <Mail size={18} color={COLORS.textSecondary} />
+            <TextInput
+              style={s.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="your@email.com"
+              placeholderTextColor={COLORS.textSecondary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+          </View>
+
+          <TouchableOpacity style={[s.btn, (loading || !email) && { opacity: 0.5 }]} disabled={loading || !email} onPress={submit}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Отправить код</Text>}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 14 }}>
             <Text style={s.link}>← Назад ко входу</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, padding: 24, justifyContent: 'center', gap: 16 },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.text },
-  sub: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 12 },
-  input: { backgroundColor: COLORS.white, borderRadius: 12, padding: 14, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text },
-  btn: { height: 52, backgroundColor: COLORS.primary, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  link: { color: COLORS.primary, fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 16 },
-  successBox: { alignItems: 'center', gap: 8, padding: 16, backgroundColor: COLORS.success + '15', borderRadius: 14, borderWidth: 1, borderColor: COLORS.success + '40' },
-  successEmoji: { fontSize: 48 },
-  successTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  successSub: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 18 },
+  inner: { flex: 1, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
+  header: { alignItems: 'center', marginBottom: 28 },
+  logoWrap: {
+    width: 88, height: 88, borderRadius: 28, justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6,
+  },
+  title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 8, letterSpacing: -0.5, textAlign: 'center' },
+  sub: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, height: 56,
+    backgroundColor: COLORS.white, borderRadius: 16, paddingHorizontal: 16,
+    marginBottom: 14, borderWidth: 1, borderColor: 'transparent',
+    shadowColor: '#0006', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 3,
+  },
+  input: { flex: 1, fontSize: 16, color: COLORS.text },
+  btn: { height: 56, backgroundColor: COLORS.primary, borderRadius: 16, justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 4 },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  link: { color: COLORS.primary, fontSize: 14, fontWeight: '600', textAlign: 'center' },
 });
