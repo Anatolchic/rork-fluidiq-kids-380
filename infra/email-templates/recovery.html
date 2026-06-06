@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>Восстановление пароля</title></head>
+<body style="margin:0;padding:0;background:#F5F7FA;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1A1D29">
+  <div style="max-width:540px;margin:32px auto;background:#FFFFFF;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(108,99,255,0.10)">
+
+    <div style="background:linear-gradient(135deg,#6C63FF 0%,#8B7FFF 100%);padding:36px 24px;text-align:center">
+      <img src="https://repetitory-app.ru/email-templates/logo.png" alt="Репетиторы" width="88" height="88" style="display:block;margin:0 auto 14px;border:0;outline:none;text-decoration:none;border-radius:20px"/>
+      <h1 style="margin:0;font-size:24px;color:#FFFFFF;font-weight:800;letter-spacing:-0.5px">Репетиторы</h1>
+      <p style="margin:6px 0 0;font-size:13px;color:#FFFFFFCC">Платформа онлайн-обучения</p>
+    </div>
+
+    <div style="padding:32px 28px">
+      <h2 style="font-size:20px;color:#1A1D29;margin:0 0 6px;font-weight:800">Восстановление пароля</h2>
+      <p style="color:#6B7280;font-size:14px;line-height:22px;margin:0 0 24px">Здравствуйте! Введите этот код в приложении, чтобы установить новый пароль.</p>
+
+      <div style="text-align:center;background:linear-gradient(135deg,#6C63FF0F 0%,#8B7FFF0F 100%);border:1.5px solid #6C63FF33;border-radius:16px;padding:28px 16px;margin:0 0 22px">
+        <p style="margin:0 0 10px;font-size:11px;color:#6C63FF;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Ваш код</p>
+        <div style="font-size:42px;font-weight:800;letter-spacing:10px;color:#6C63FF;font-family:ui-monospace,SF Mono,Menlo,Monaco,Consolas,monospace;line-height:1">{{ .Token }}</div>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
+        <tr>
+          <td style="padding:12px;background:#FEE2E215;border-left:3px solid #EF4444;border-radius:8px">
+            <p style="margin:0;font-size:13px;color:#1A1D29;line-height:20px"><strong>Код действует 60 минут.</strong> Если вы не запрашивали смену пароля — проигнорируйте письмо и проверьте безопасность аккаунта.</p>
+          </td>
+        </tr>
+      </table>
+
+      <p style="color:#9CA3AF;font-size:12px;line-height:18px;margin:0">Никому не сообщайте код — сотрудники сервиса никогда не запросят его у вас.</p>
+    </div>
+
+    <div style="background:#F5F7FA;padding:18px 28px;text-align:center;border-top:1px solid #E5E7EB">
+      <p style="margin:0;color:#6B7280;font-size:12px">© Репетиторы · <a href="https://repetitory-app.ru" style="color:#6C63FF;text-decoration:none;font-weight:600">repetitory-app.ru</a></p>
+      <p style="margin:6px 0 0;color:#9CA3AF;font-size:11px">Письмо отправлено автоматически, не отвечайте на него</p>
+    </div>
+
+  </div>
+</body></html>
