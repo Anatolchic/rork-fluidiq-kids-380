@@ -12,16 +12,30 @@ const FALLBACK_ANON_KEY =
 
 const isBrowser = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
+// Безопасная обёртка с 1.5s timeout — если localStorage висит (private
+// mode, политика браузера, расширения, корпоративный прокси), вернём
+// fallback не блокируя signInWithPassword. Был баг «Сервер не отвечает»
+// из-за того что supabase-js await'ит storage.setItem.
+function withFastTimeout<T>(fn: () => T, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    let done = false;
+    const id = setTimeout(() => { if (!done) { done = true; resolve(fallback); } }, 1500);
+    try {
+      const v = fn();
+      if (!done) { done = true; clearTimeout(id); resolve(v); }
+    } catch {
+      if (!done) { done = true; clearTimeout(id); resolve(fallback); }
+    }
+  });
+}
+
 const WebStorageAdapter = {
-  getItem: (key: string) => Promise.resolve(isBrowser ? window.localStorage.getItem(key) : null),
-  setItem: (key: string, value: string) => {
-    if (isBrowser) window.localStorage.setItem(key, value);
-    return Promise.resolve();
-  },
-  removeItem: (key: string) => {
-    if (isBrowser) window.localStorage.removeItem(key);
-    return Promise.resolve();
-  },
+  getItem: (key: string) =>
+    withFastTimeout<string | null>(() => (isBrowser ? window.localStorage.getItem(key) : null), null),
+  setItem: (key: string, value: string) =>
+    withFastTimeout<void>(() => { if (isBrowser) window.localStorage.setItem(key, value); }, undefined),
+  removeItem: (key: string) =>
+    withFastTimeout<void>(() => { if (isBrowser) window.localStorage.removeItem(key); }, undefined),
 };
 
 // ВАЖНО: на native используем AsyncStorage вместо expo-secure-store.

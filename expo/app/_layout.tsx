@@ -72,13 +72,20 @@ export default function RootLayout() {
     }
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session?.user) {
         if (lastLoadedUserIdRef.current !== session.user.id) {
-          await loadProfile(session.user.id);
+          // НЕ await — иначе supabase-js может зависнуть на signIn пока
+          // loadProfile не закончит (наблюдалось как «Сервер не отвечает»)
+          loadProfile(session.user.id).catch(e => console.warn('[loadProfile]', e));
         }
-      } else {
+      } else if (event === 'SIGNED_OUT') {
+        // Редиректим на login ТОЛЬКО на явный logout. На INITIAL_SESSION с
+        // session=null (холодный старт без сохранённой сессии) — не редиректим,
+        // потому что _layout сам отрендерит /(auth)/login через файл-роутинг.
+        // Раньше любой null валил пользователя на login даже после reload c
+        // valid сессией в localStorage.
         setProfile(null);
         lastLoadedUserIdRef.current = null;
         safeReplace('/(auth)/login');
