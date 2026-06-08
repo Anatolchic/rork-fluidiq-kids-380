@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Act
 import { useLocalSearchParams, router } from 'expo-router';
 import { Star, GraduationCap, Award, MessageCircle } from 'lucide-react-native';
 import { addDays, format, startOfMonth, addMonths } from 'date-fns';
+import { ru as ruLocale } from 'date-fns/locale';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { TutorProfile } from '../../lib/types';
@@ -164,7 +165,7 @@ export default function PublicTutorProfile() {
 
         <View style={s.ctaRow}>
           <TouchableOpacity style={[s.bookBtn, canWrite && s.bookBtnFlex]} onPress={onBook}>
-            <Text style={s.bookBtnText}>{selectedDate ? `Записаться на ${format(selectedDate, 'd MMMM')}` : 'Записаться на урок'}</Text>
+            <Text style={s.bookBtnText}>{selectedDate ? `Записаться на ${format(selectedDate, 'd MMMM', { locale: ruLocale })}` : 'Записаться на урок'}</Text>
           </TouchableOpacity>
           {canWrite && (
             <TouchableOpacity
