@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -132,36 +132,78 @@ export default function RootLayout() {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
+      <WebFrame>
+        <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </WebFrame>
     );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
-      <VpnNotice />
-      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(student)" />
-        <Stack.Screen name="(tutor)" />
-        <Stack.Screen name="(admin)" />
-        <Stack.Screen name="admin-user/[id]" options={{ headerShown: true, title: 'Пользователь', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="review/[bookingId]" options={{ headerShown: true, title: 'Отзыв', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="support" options={{ headerShown: true, title: 'Поддержка', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="tutor-setup" options={{ headerShown: true, title: 'Профиль репетитора', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="verification" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/reset-password" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
-        <Stack.Screen name="tutor/[id]" options={{ headerShown: true, title: '', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="booking/new" options={{ headerShown: true, title: 'Запись на урок', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="booking/[id]" options={{ headerShown: true, title: 'Бронирование', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="chat/[id]" options={{ headerShown: true, title: 'Чат', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="chat/direct/[id]" options={{ headerShown: true, title: 'Чат', headerBackTitle: 'Назад' }} />
-        <Stack.Screen name="call/[id]" options={{ presentation: 'fullScreenModal' }} />
-      </Stack>
+      <WebFrame>
+        <VpnNotice />
+        <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(student)" />
+          <Stack.Screen name="(tutor)" />
+          <Stack.Screen name="(admin)" />
+          <Stack.Screen name="admin-user/[id]" options={{ headerShown: true, title: 'Пользователь', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="review/[bookingId]" options={{ headerShown: true, title: 'Отзыв', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="support" options={{ headerShown: true, title: 'Поддержка', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="tutor-setup" options={{ headerShown: true, title: 'Профиль репетитора', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="verification" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/reset-password" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
+          <Stack.Screen name="tutor/[id]" options={{ headerShown: true, title: '', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="booking/new" options={{ headerShown: true, title: 'Запись на урок', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="booking/[id]" options={{ headerShown: true, title: 'Бронирование', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="chat/[id]" options={{ headerShown: true, title: 'Чат', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="chat/direct/[id]" options={{ headerShown: true, title: 'Чат', headerBackTitle: 'Назад' }} />
+          <Stack.Screen name="call/[id]" options={{ presentation: 'fullScreenModal' }} />
+        </Stack>
+      </WebFrame>
     </QueryClientProvider>
   );
 }
+
+// На web React Native растягивает root на всю ширину окна — превью в эмуляторе
+// и в браузере выглядит «крупным». Оборачиваем приложение в контейнер с
+// max-width=480px, центрируем и подкладываем мягкий фон вокруг. На native
+// (iOS/Android) этот компонент — просто проброс детей.
+function WebFrame({ children }: { children: React.ReactNode }) {
+  if (Platform.OS !== 'web') return <>{children}</>;
+  return (
+    <View style={webFrameStyles.outer}>
+      <View style={webFrameStyles.phone}>{children}</View>
+    </View>
+  );
+}
+
+const webFrameStyles = StyleSheet.create({
+  outer: {
+    flex: 1,
+    backgroundColor: '#EEF0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // height: '100vh' на web — без этого root коллапсируется
+    ...(Platform.OS === 'web' ? ({ minHeight: '100vh' } as any) : {}),
+  },
+  phone: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: COLORS.background,
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? ({
+          height: '100vh',
+          maxHeight: '100vh',
+          boxShadow: '0 10px 40px rgba(20,20,60,0.12)',
+        } as any)
+      : {}),
+  },
+});
