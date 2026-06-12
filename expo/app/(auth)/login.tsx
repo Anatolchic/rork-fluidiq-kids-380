@@ -31,8 +31,8 @@ export default function LoginScreen() {
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   useResponsive();
   const { height: winH } = useWindowDimensions();
-  // На малых Android-устройствах ужимаем лого: 88x88 на >700px, 64x64 при <700px,
-  // 56x56 при <600px. Иконка ~85% от подложки.
+  // Прежние iPhone-размеры — нравятся владельцу. На устройствах с малой
+  // высотой ужимаем чтобы всё помещалось.
   const logoSize = winH >= 700 ? 88 : winH >= 600 ? 72 : 60;
   const iconSize = Math.round(logoSize * 0.85);
   const logoRadius = Math.round(logoSize * 0.32);
@@ -324,44 +324,44 @@ const cardShadow = {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   inner: { flex: 1, padding: 28, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
-  header: { alignItems: 'center', marginBottom: 18 },
+  header: { alignItems: 'center', marginBottom: 30 },
   logoWrap: {
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 4, letterSpacing: -0.5 },
+  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
   subtitle: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
-  form: { gap: 12 },
+  form: { gap: 14 },
   inputWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    height: 50,
+    height: 56,
     backgroundColor: COLORS.white,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: 'transparent',
     ...cardShadow,
   },
-  input: { flex: 1, fontSize: 15, color: COLORS.text },
+  input: { flex: 1, fontSize: 16, color: COLORS.text },
   eyeBtn: { padding: 4 },
-  btnPrimaryWrap: { marginTop: 4, borderRadius: 14, ...cardShadow },
-  btnPrimary: { height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  btnPrimaryWrap: { marginTop: 6, borderRadius: 16, ...cardShadow },
+  btnPrimary: { height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
   forgotLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
   btnBio: {
-    height: 50, backgroundColor: COLORS.white, borderRadius: 14,
+    height: 56, backgroundColor: COLORS.white, borderRadius: 16,
     borderWidth: 1.5, borderColor: COLORS.primary + '50',
     justifyContent: 'center', alignItems: 'center',
-    flexDirection: 'row', gap: 8, marginTop: 2,
+    flexDirection: 'row', gap: 8, marginTop: 4,
   },
   btnBioText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
-  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, marginBottom: 16, ...cardShadow },
-  authTab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, marginBottom: 20, ...cardShadow },
+  authTab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
   authTabActive: { backgroundColor: COLORS.primary + '15' },
   authTabText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '700' },
   authTabTextActive: { color: COLORS.primary, fontSize: 15, fontWeight: '800' },
