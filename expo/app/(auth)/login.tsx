@@ -30,12 +30,21 @@ export default function LoginScreen() {
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   useResponsive();
-  const { height: winH } = useWindowDimensions();
-  // Прежние iPhone-размеры — нравятся владельцу. На устройствах с малой
-  // высотой ужимаем чтобы всё помещалось.
-  const logoSize = winH >= 700 ? 88 : winH >= 600 ? 72 : 60;
+  const { width: winW } = useWindowDimensions();
+  // Пропорции от ширины экрана. На iPhone 14 (393pt) у владельца было
+  // logo=88, title=32, input height=56 — именно эти соотношения и берём.
+  // На любом Android (411dp / 360dp) элементы займут такую же ДОЛЮ экрана.
+  // Clamp до 440 чтобы на планшетах не раздуть.
+  const w = Math.min(winW, 440);
+  const logoSize = Math.round(w * 0.224);     // 88 / 393
   const iconSize = Math.round(logoSize * 0.85);
   const logoRadius = Math.round(logoSize * 0.32);
+  const titleFont = Math.round(w * 0.081);    // 32 / 393
+  const inputH = Math.round(w * 0.143);       // 56 / 393
+  const inputFont = Math.round(w * 0.041);    // 16 / 393
+  const btnH = inputH;
+  const tabPad = Math.round(w * 0.031);       // 12 / 393
+  const tabFont = Math.round(w * 0.038);      // 15 / 393
 
   useEffect(() => {
     (async () => {
@@ -178,29 +187,29 @@ export default function LoginScreen() {
             >
               <GraduationCap size={iconSize} color="#fff" strokeWidth={2.2} />
             </LinearGradient>
-            <Text style={styles.title}>Репетиторы</Text>
+            <Text style={[styles.title, { fontSize: titleFont }]}>Репетиторы</Text>
           </View>
 
           <View style={styles.authTabs}>
             <Pressable
-              style={({ pressed }) => [styles.authTab, !isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
+              style={({ pressed }) => [styles.authTab, { paddingVertical: tabPad }, !isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
               onPress={() => setMode('login')}
             >
-              <Text style={!isRegister ? styles.authTabTextActive : styles.authTabText}>Вход</Text>
+              <Text style={[!isRegister ? styles.authTabTextActive : styles.authTabText, { fontSize: tabFont }]}>Вход</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.authTab, isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
+              style={({ pressed }) => [styles.authTab, { paddingVertical: tabPad }, isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
               onPress={() => setMode('register')}
             >
-              <Text style={isRegister ? styles.authTabTextActive : styles.authTabText}>Регистрация</Text>
+              <Text style={[isRegister ? styles.authTabTextActive : styles.authTabText, { fontSize: tabFont }]}>Регистрация</Text>
             </Pressable>
           </View>
 
-          <View style={[styles.form, { minHeight: winH < 700 ? 280 : 360 }]}>
-            <View style={styles.inputWrap}>
-              <Mail size={18} color={COLORS.textSecondary} />
+          <View style={styles.form}>
+            <View style={[styles.inputWrap, { height: inputH }]}>
+              <Mail size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontSize: inputFont }]}
                 placeholder="Email"
                 value={email}
                 onChangeText={setEmail}
@@ -211,10 +220,10 @@ export default function LoginScreen() {
               />
             </View>
 
-            <View style={styles.inputWrap}>
-              <Lock size={18} color={COLORS.textSecondary} />
+            <View style={[styles.inputWrap, { height: inputH }]}>
+              <Lock size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontSize: inputFont }]}
                 placeholder="Пароль"
                 value={password}
                 onChangeText={setPassword}
@@ -223,16 +232,16 @@ export default function LoginScreen() {
                 autoCapitalize="none"
               />
               <TouchableOpacity onPress={() => setShowPass(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                {showPass ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+                {showPass ? <EyeOff size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} /> : <Eye size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} />}
               </TouchableOpacity>
             </View>
 
             {isRegister && (
               <>
-                <View style={styles.inputWrap}>
-                  <Lock size={18} color={COLORS.textSecondary} />
+                <View style={[styles.inputWrap, { height: inputH }]}>
+                  <Lock size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { fontSize: inputFont }]}
                     placeholder="Повторите пароль"
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
@@ -241,7 +250,7 @@ export default function LoginScreen() {
                     autoCapitalize="none"
                   />
                   <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                    {showConfirm ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+                    {showConfirm ? <EyeOff size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} /> : <Eye size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} />}
                   </TouchableOpacity>
                 </View>
 
@@ -277,10 +286,10 @@ export default function LoginScreen() {
                 colors={[COLORS.primary, '#8B7FFF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.btnPrimary}
+                style={[styles.btnPrimary, { height: btnH }]}
                 pointerEvents="none"
               >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={[styles.btnPrimaryText, { fontSize: inputFont }]}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>}
               </LinearGradient>
             </Pressable>
 
@@ -289,21 +298,21 @@ export default function LoginScreen() {
                 onPress={() => router.push('/(auth)/forgot-password')}
                 style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
               >
-                <Text style={styles.forgotLink}>Забыли пароль?</Text>
+                <Text style={[styles.forgotLink, { fontSize: Math.round(inputFont * 0.9) }]}>Забыли пароль?</Text>
               </Pressable>
             )}
 
             {!isRegister && bioEnabled && Platform.OS !== 'web' && (
               <Pressable
                 style={({ pressed }) => [
-                  styles.btnBio,
+                  styles.btnBio, { height: btnH },
                   { transform: [{ scale: pressed ? 0.98 : 1 }] },
                 ]}
                 onPress={handleBioLogin}
                 disabled={loading}
               >
-                <Fingerprint size={20} color={COLORS.primary} />
-                <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
+                <Fingerprint size={Math.round(inputFont * 1.25)} color={COLORS.primary} />
+                <Text style={[styles.btnBioText, { fontSize: Math.round(inputFont * 0.95) }]}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
               </Pressable>
             )}
           </View>
