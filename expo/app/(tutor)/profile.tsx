@@ -34,7 +34,7 @@ export default function TutorProfileScreen() {
   useEffect(() => { if (session) load(); }, [session]);
 
   async function load() {
-    const { data } = await supabase.from('tutor_profiles').select('*').eq('user_id', session!.user.id).single();
+    const { data } = await supabase.from('tutor_profiles').select('*').eq('user_id', session!.user.id).maybeSingle();
     setProfile(data);
     setLoading(false);
   }
@@ -82,7 +82,36 @@ export default function TutorProfileScreen() {
     ]);
   }
 
-  if (!session || loading || !profile) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  if (!session) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+
+  // Профиль ещё не создан — показываем минимальный экран с кнопкой
+  // «Создать профиль» и кнопкой «Выйти» (раньше тут был бесконечный лоадер
+  // если профиля нет, юзер не мог выйти из аккаунта).
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth, alignSelf: 'center' as any, width: '100%' }]}>
+          <Text style={styles.title}>Профиль</Text>
+          <View style={styles.card}>
+            <Text style={styles.email}>{session.user.email}</Text>
+            <Text style={[styles.avatarHint, { marginTop: 8 }]}>
+              Профиль репетитора ещё не создан. Завершите настройку, чтобы появиться в каталоге.
+            </Text>
+            <TouchableOpacity
+              style={[styles.saveBtn, { marginTop: 14 }]}
+              onPress={() => router.push('/tutor-setup')}
+            >
+              <Text style={styles.saveText}>Создать профиль</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+            <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, ActivityIndicator, Platform, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Platform, StyleSheet, Text as RNText, TextInput as RNTextInput } from 'react-native';
+
+// Глобально запретить системный font scaling — на Android юзеры часто
+// держат «Размер шрифта 1.15x/1.3x» в настройках, из-за чего лого, поля и
+// кнопки выглядят раздутыми по сравнению с iOS. Жёсткий cap = 1.0 даёт
+// предсказуемый рендер.
+(RNText as any).defaultProps = (RNText as any).defaultProps || {};
+(RNText as any).defaultProps.allowFontScaling = false;
+(RNText as any).defaultProps.maxFontSizeMultiplier = 1.0;
+(RNTextInput as any).defaultProps = (RNTextInput as any).defaultProps || {};
+(RNTextInput as any).defaultProps.allowFontScaling = false;
+(RNTextInput as any).defaultProps.maxFontSizeMultiplier = 1.0;
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
