@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet,
   SafeAreaView, ActivityIndicator, Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +14,14 @@ import { UserRole } from '../../lib/types';
 export default function RoleSelectScreen() {
   const [selected, setSelected] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(false);
+  const { width: winW, height: winH } = useWindowDimensions();
+  const w = Math.min(winW, 440);
+  const logoSize = Math.round(w * 0.224);
+  const iconSize = Math.round(logoSize * 0.85);
+  const titleFont = Math.round(w * 0.071);
+  const btnH = Math.round(w * 0.143);
+  const btnFont = Math.round(w * 0.041);
+  const headerTop = Math.round(winH * 0.10);
 
   async function handleContinue() {
     if (!selected) { Alert.alert('Выберите роль'); return; }
@@ -34,16 +43,16 @@ export default function RoleSelectScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.inner}>
+      <View style={[styles.inner, { paddingTop: headerTop }]}>
         <View style={styles.header}>
           <LinearGradient
             colors={[COLORS.primary, '#8B7FFF']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={styles.logoWrap}
+            style={[styles.logoWrap, { width: logoSize, height: logoSize, borderRadius: Math.round(logoSize * 0.32) }]}
           >
-            <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
+            <GraduationCap size={iconSize} color="#fff" strokeWidth={2.2} />
           </LinearGradient>
-          <Text style={styles.title}>Кто вы?</Text>
+          <Text style={[styles.title, { fontSize: titleFont }]}>Кто вы?</Text>
           <Text style={styles.subtitle}>Выберите роль в приложении</Text>
         </View>
 
@@ -101,10 +110,10 @@ export default function RoleSelectScreen() {
           <LinearGradient
             colors={[COLORS.primary, '#8B7FFF']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={styles.btnContinue}
+            style={[styles.btnContinue, { height: btnH }]}
             pointerEvents="none"
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Продолжить</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={[styles.btnText, { fontSize: btnFont }]}>Продолжить</Text>}
           </LinearGradient>
         </Pressable>
       </View>
@@ -122,7 +131,7 @@ const cardShadow = {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 24, justifyContent: 'center', maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
+  inner: { flex: 1, padding: 24, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
   header: { alignItems: 'center', marginBottom: 32 },
   logoWrap: {
     width: 88, height: 88, borderRadius: 28,

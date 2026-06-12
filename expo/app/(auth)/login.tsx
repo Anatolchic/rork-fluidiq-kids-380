@@ -30,11 +30,8 @@ export default function LoginScreen() {
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   useResponsive();
-  const { width: winW } = useWindowDimensions();
-  // Пропорции от ширины экрана. На iPhone 14 (393pt) у владельца было
-  // logo=88, title=32, input height=56 — именно эти соотношения и берём.
-  // На любом Android (411dp / 360dp) элементы займут такую же ДОЛЮ экрана.
-  // Clamp до 440 чтобы на планшетах не раздуть.
+  const { width: winW, height: winH } = useWindowDimensions();
+  // Пропорции от ширины. Clamp до 440 для планшетов.
   const w = Math.min(winW, 440);
   const logoSize = Math.round(w * 0.224);     // 88 / 393
   const iconSize = Math.round(logoSize * 0.85);
@@ -45,6 +42,9 @@ export default function LoginScreen() {
   const btnH = inputH;
   const tabPad = Math.round(w * 0.031);       // 12 / 393
   const tabFont = Math.round(w * 0.038);      // 15 / 393
+  // Лого фиксированное по верхнему отступу — не «прыгает» при переключении
+  // login↔register. ~12% высоты экрана сверху.
+  const headerTop = Math.round(winH * 0.12);
 
   useEffect(() => {
     (async () => {
@@ -174,7 +174,7 @@ export default function LoginScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 20 }}
+          contentContainerStyle={{ flexGrow: 1, paddingTop: headerTop, paddingBottom: 20 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -333,7 +333,7 @@ const cardShadow = {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   inner: { flex: 1, padding: 28, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
-  header: { alignItems: 'center', marginBottom: 30 },
+  header: { alignItems: 'center', marginBottom: 22 },
   logoWrap: {
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 16,

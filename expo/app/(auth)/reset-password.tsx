@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useWindowDimensions } from 'react-native';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
@@ -22,6 +23,14 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const { width: winW, height: winH } = useWindowDimensions();
+  const headerTop = Math.round(winH * 0.08);
+  const w = Math.min(winW, 440);
+  const logoSize = Math.round(w * 0.224);
+  const iconSize = Math.round(logoSize * 0.85);
+  const titleFont = Math.round(w * 0.066);
+  const inputFont = Math.round(w * 0.041);
+  const inputH = Math.round(w * 0.143);
   const inputsRef = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
@@ -80,12 +89,12 @@ export default function ResetPassword() {
   return (
     <SafeAreaView style={s.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.inner}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: headerTop, paddingHorizontal: 24, paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
           <View style={s.header}>
-            <LinearGradient colors={[COLORS.primary, '#8B7FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.logoWrap}>
-              <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
+            <LinearGradient colors={[COLORS.primary, '#8B7FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.logoWrap, { width: logoSize, height: logoSize, borderRadius: Math.round(logoSize * 0.32) }]}>
+              <GraduationCap size={iconSize} color="#fff" strokeWidth={2.2} />
             </LinearGradient>
-            <Text style={s.title}>Новый пароль</Text>
+            <Text style={[s.title, { fontSize: titleFont }]}>Новый пароль</Text>
             <Text style={s.sub}>Введите код из письма и новый пароль</Text>
             {!!email && <Text style={s.email}>{String(email)}</Text>}
           </View>
