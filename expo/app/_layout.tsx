@@ -143,19 +143,16 @@ export default function RootLayout() {
 
   if (!ready) {
     return (
-      <WebFrame>
-        <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      </WebFrame>
+      <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
     );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
-      <WebFrame>
-        <VpnNotice />
+      <VpnNotice />
         <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }}>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(student)" />
@@ -176,7 +173,6 @@ export default function RootLayout() {
           <Stack.Screen name="chat/direct/[id]" options={{ headerShown: true, title: 'Чат', headerBackTitle: 'Назад' }} />
           <Stack.Screen name="call/[id]" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
-      </WebFrame>
     </QueryClientProvider>
   );
 }
