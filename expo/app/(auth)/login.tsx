@@ -226,42 +226,49 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {isRegister && (
-              <>
-                <View style={styles.inputWrap}>
-                  <Lock size={18} color={COLORS.textSecondary} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Повторите пароль"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showConfirm}
-                    placeholderTextColor={COLORS.textSecondary}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                    {showConfirm ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
-                  </TouchableOpacity>
-                </View>
+            {/* Confirm password — всегда в DOM для стабильной высоты, скрыт в режиме входа */}
+            <View
+              style={[styles.inputWrap, !isRegister && styles.invisible]}
+              pointerEvents={!isRegister ? 'none' : 'auto'}
+            >
+              <Lock size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Повторите пароль"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirm}
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                editable={isRegister}
+              />
+              <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
+                {showConfirm ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+              </TouchableOpacity>
+            </View>
 
-                <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(v => !v)} activeOpacity={0.7}>
-                  <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-                    {agreed && <Check size={14} color="#fff" strokeWidth={3} />}
-                  </View>
-                  <Text style={styles.agreeText}>
-                    Я согласен с{' '}
-                    <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/terms.html')}>
-                      условиями использования
-                    </Text>
-                    {' '}и{' '}
-                    <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/privacy.html')}>
-                      политикой обработки персональных данных
-                    </Text>
-                    {' '}(ФЗ-152)
+            {/* Согласие — всегда в DOM для стабильной высоты, скрыто в режиме входа */}
+            <View
+              style={!isRegister ? styles.invisible : undefined}
+              pointerEvents={!isRegister ? 'none' : 'auto'}
+            >
+              <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(v => !v)} activeOpacity={0.7}>
+                <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+                  {agreed && <Check size={14} color="#fff" strokeWidth={3} />}
+                </View>
+                <Text style={styles.agreeText}>
+                  Я согласен с{' '}
+                  <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/terms.html')}>
+                    условиями использования
                   </Text>
-                </TouchableOpacity>
-              </>
-            )}
+                  {' '}и{' '}
+                  <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/privacy.html')}>
+                    политикой обработки персональных данных
+                  </Text>
+                  {' '}(ФЗ-152)
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <Pressable
               style={({ pressed }) => [
@@ -283,14 +290,14 @@ export default function LoginScreen() {
               </LinearGradient>
             </Pressable>
 
-            {!isRegister && (
-              <Pressable
-                onPress={() => router.push('/(auth)/forgot-password')}
-                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-              >
-                <Text style={styles.forgotLink}>Забыли пароль?</Text>
-              </Pressable>
-            )}
+            {/* Забыли пароль — всегда в DOM для стабильной высоты, скрыт в режиме регистрации */}
+            <Pressable
+              onPress={() => router.push('/(auth)/forgot-password')}
+              style={({ pressed }) => ({ opacity: isRegister ? 0 : (pressed ? 0.5 : 1) })}
+              pointerEvents={isRegister ? 'none' : 'auto'}
+            >
+              <Text style={styles.forgotLink}>Забыли пароль?</Text>
+            </Pressable>
 
             {Platform.OS !== 'web' && (
               !isRegister && bioEnabled ? (
@@ -306,9 +313,6 @@ export default function LoginScreen() {
                   <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
                 </Pressable>
               ) : (
-                /* Резерв высоты: чтобы при переключении login↔register
-                   логотип и поля не прыгали по вертикали — место под
-                   биометрию всегда присутствует. */
                 <View style={styles.bioPlaceholder} />
               )
             )}
@@ -382,4 +386,5 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   agreeText: { flex: 1, fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
   agreeLink: { color: COLORS.primary, fontWeight: '700' },
+  invisible: { opacity: 0 },
 });
