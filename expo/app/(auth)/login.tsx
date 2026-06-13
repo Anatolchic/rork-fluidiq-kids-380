@@ -34,8 +34,7 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
 
-  // 18% от высоты экрана сверху до верха лого, 18% снизу до низа кнопки.
-  // Вычитаем safe-area-inset, т.к. SafeAreaView уже его учитывает.
+  // 18% от высоты экрана сверху до верха лого, снизу — breathing room.
   const topPad = Math.max(0, screenHeight * 0.18 - insets.top);
   const bottomPad = Math.max(0, screenHeight * 0.18 - insets.bottom);
 
@@ -164,7 +163,7 @@ export default function LoginScreen() {
       >
         <View style={styles.inner}>
 
-          {/* ── ФИКСИРОВАННАЯ ШАПКА: лого + переключатель ── */}
+          {/* ── ШАПКА: лого + переключатель (фиксированы, не зависят от формы) ── */}
           <View style={[styles.topSection, { paddingTop: topPad }]}>
             <View style={styles.header}>
               <LinearGradient
@@ -173,7 +172,7 @@ export default function LoginScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.logoWrap}
               >
-                <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
+                <GraduationCap size={62} color="#fff" strokeWidth={2.2} />
               </LinearGradient>
               <Text style={styles.title}>Репетиторы</Text>
             </View>
@@ -194,17 +193,17 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* ── СКРОЛЛ: поля формы ── */}
+          {/* ── ФОРМА + КНОПКА: один ScrollView, кнопка прямо под полями ── */}
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.form}>
 
               <View style={styles.inputWrap}>
-                <Mail size={18} color={COLORS.textSecondary} />
+                <Mail size={16} color={COLORS.textSecondary} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email"
@@ -218,7 +217,7 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.inputWrap}>
-                <Lock size={18} color={COLORS.textSecondary} />
+                <Lock size={16} color={COLORS.textSecondary} />
                 <TextInput
                   style={styles.input}
                   placeholder="Пароль"
@@ -229,7 +228,7 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                 />
                 <TouchableOpacity onPress={() => setShowPass(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                  {showPass ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+                  {showPass ? <EyeOff size={16} color={COLORS.textSecondary} /> : <Eye size={16} color={COLORS.textSecondary} />}
                 </TouchableOpacity>
               </View>
 
@@ -238,7 +237,7 @@ export default function LoginScreen() {
                 style={[styles.inputWrap, !isRegister && styles.invisible]}
                 pointerEvents={!isRegister ? 'none' : 'auto'}
               >
-                <Lock size={18} color={COLORS.textSecondary} />
+                <Lock size={16} color={COLORS.textSecondary} />
                 <TextInput
                   style={styles.input}
                   placeholder="Повторите пароль"
@@ -250,7 +249,7 @@ export default function LoginScreen() {
                   editable={isRegister}
                 />
                 <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                  {showConfirm ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+                  {showConfirm ? <EyeOff size={16} color={COLORS.textSecondary} /> : <Eye size={16} color={COLORS.textSecondary} />}
                 </TouchableOpacity>
               </View>
 
@@ -261,7 +260,7 @@ export default function LoginScreen() {
               >
                 <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(v => !v)} activeOpacity={0.7}>
                   <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-                    {agreed && <Check size={14} color="#fff" strokeWidth={3} />}
+                    {agreed && <Check size={12} color="#fff" strokeWidth={3} />}
                   </View>
                   <Text style={styles.agreeText}>
                     Я согласен с{' '}
@@ -294,7 +293,7 @@ export default function LoginScreen() {
                     onPress={handleBioLogin}
                     disabled={loading}
                   >
-                    <Fingerprint size={20} color={COLORS.primary} />
+                    <Fingerprint size={18} color={COLORS.primary} />
                     <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
                   </Pressable>
                 ) : (
@@ -302,34 +301,32 @@ export default function LoginScreen() {
                 )
               )}
 
+              {/* ── КНОПКА: прямо под последним полем ── */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.btnPrimaryWrap,
+                  (isRegister && !agreed) && { opacity: 0.5 },
+                  { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                ]}
+                onPress={isRegister ? handleRegister : handleLogin}
+                disabled={loading || (isRegister && !agreed)}
+              >
+                <LinearGradient
+                  colors={[COLORS.primary, '#8B7FFF']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.btnPrimary}
+                  pointerEvents="none"
+                >
+                  {loading
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.btnPrimaryText}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>
+                  }
+                </LinearGradient>
+              </Pressable>
+
             </View>
           </ScrollView>
-
-          {/* ── ФИКСИРОВАННЫЙ НИЗ: кнопка — низ кнопки = 18% от низа экрана ── */}
-          <View style={[styles.bottomSection, { paddingBottom: bottomPad }]}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.btnPrimaryWrap,
-                (isRegister && !agreed) && { opacity: 0.5 },
-                { transform: [{ scale: pressed ? 0.98 : 1 }] },
-              ]}
-              onPress={isRegister ? handleRegister : handleLogin}
-              disabled={loading || (isRegister && !agreed)}
-            >
-              <LinearGradient
-                colors={[COLORS.primary, '#8B7FFF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.btnPrimary}
-                pointerEvents="none"
-              >
-                {loading
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.btnPrimaryText}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>
-                }
-              </LinearGradient>
-            </Pressable>
-          </View>
 
         </View>
       </KeyboardAvoidingView>
@@ -350,68 +347,72 @@ const styles = StyleSheet.create({
   kav: { flex: 1 },
   inner: { flex: 1, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
 
-  // Фиксированная шапка
+  // Фиксированная шапка — лого и таб-переключатель
   topSection: { paddingHorizontal: 24 },
-  header: { alignItems: 'center', marginBottom: 28 },
+  header: { alignItems: 'center', marginBottom: 16 },
   logoWrap: {
-    width: 88, height: 88, borderRadius: 24,
+    width: 76, height: 76, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 5,
   },
-  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  title: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   authTabs: {
     flexDirection: 'row', backgroundColor: COLORS.white,
-    borderRadius: 11, padding: 3, ...cardShadow,
+    borderRadius: 10, padding: 3, ...cardShadow,
   },
-  authTab: { flex: 1, height: 34, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
+  authTab: { flex: 1, height: 30, justifyContent: 'center', alignItems: 'center', borderRadius: 7 },
   authTabActive: { backgroundColor: COLORS.primary + '15' },
-  authTabText: { color: COLORS.textSecondary, fontSize: 13.5, fontWeight: '700' },
-  authTabTextActive: { color: COLORS.primary, fontSize: 13.5, fontWeight: '800' },
+  authTabText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
+  authTabTextActive: { color: COLORS.primary, fontSize: 13, fontWeight: '800' },
 
-  // Скроллируемая зона с полями
+  // Зона с полями — ScrollView обеспечивает клавиатурный отступ
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 16 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 12 },
+
+  // Форма — все поля и кнопка идут подряд
   form: { gap: 12 },
   inputWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    height: 54,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    height: 48,
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    paddingHorizontal: 16,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: 'transparent',
     ...cardShadow,
   },
-  input: { flex: 1, fontSize: 15, color: COLORS.text },
-  eyeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  forgotLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
-  bioPlaceholder: { minHeight: 58 },
+  input: { flex: 1, fontSize: 14, color: COLORS.text },
+  eyeBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+
+  // Кнопки и ссылки
+  btnPrimaryWrap: { borderRadius: 14, ...cardShadow },
+  btnPrimary: { height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
+  forgotLink: { color: COLORS.primary, fontSize: 13, fontWeight: '700', textAlign: 'center', paddingVertical: 4 },
+  bioPlaceholder: { height: 44 },
   btnBio: {
-    height: 54, backgroundColor: COLORS.white, borderRadius: 16,
+    height: 44, backgroundColor: COLORS.white, borderRadius: 14,
     borderWidth: 1.5, borderColor: COLORS.primary + '50',
     justifyContent: 'center', alignItems: 'center',
     flexDirection: 'row', gap: 8,
   },
-  btnBioText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
-  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
+  btnBioText: { color: COLORS.primary, fontSize: 13, fontWeight: '700' },
+
+  // Согласие
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 },
   checkbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5,
+    width: 20, height: 20, borderRadius: 5, borderWidth: 1.5,
     borderColor: COLORS.border, backgroundColor: COLORS.white,
-    justifyContent: 'center', alignItems: 'center', marginTop: 2,
+    justifyContent: 'center', alignItems: 'center', marginTop: 1,
   },
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  agreeText: { flex: 1, fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
+  agreeText: { flex: 1, fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
   agreeLink: { color: COLORS.primary, fontWeight: '700' },
-  invisible: { opacity: 0 },
 
-  // Фиксированная подвал — кнопка
-  bottomSection: { paddingHorizontal: 24, paddingTop: 12 },
-  btnPrimaryWrap: { borderRadius: 16, ...cardShadow },
-  btnPrimary: { height: 54, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  invisible: { opacity: 0 },
 });
