@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView,
   Platform, ActivityIndicator, Alert, Pressable, ScrollView, Linking, TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Fingerprint, GraduationCap, Mail, Lock, Eye, EyeOff, Check } from 'lucide-react-native';
@@ -29,6 +30,7 @@ export default function LoginScreen() {
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   useResponsive();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     (async () => {
@@ -158,7 +160,11 @@ export default function LoginScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 20 }}
+          contentContainerStyle={{
+            flexGrow: 1, justifyContent: 'center',
+            paddingTop: insets.top + 40,
+            paddingBottom: insets.bottom + 24,
+          }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -286,18 +292,25 @@ export default function LoginScreen() {
               </Pressable>
             )}
 
-            {!isRegister && bioEnabled && Platform.OS !== 'web' && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.btnBio,
-                  { transform: [{ scale: pressed ? 0.98 : 1 }] },
-                ]}
-                onPress={handleBioLogin}
-                disabled={loading}
-              >
-                <Fingerprint size={20} color={COLORS.primary} />
-                <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
-              </Pressable>
+            {Platform.OS !== 'web' && (
+              !isRegister && bioEnabled ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.btnBio,
+                    { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                  ]}
+                  onPress={handleBioLogin}
+                  disabled={loading}
+                >
+                  <Fingerprint size={20} color={COLORS.primary} />
+                  <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
+                </Pressable>
+              ) : (
+                /* Резерв высоты: чтобы при переключении login↔register
+                   логотип и поля не прыгали по вертикали — место под
+                   биометрию всегда присутствует. */
+                <View style={styles.bioPlaceholder} />
+              )
             )}
           </View>
         </ScrollView>
@@ -316,10 +329,10 @@ const cardShadow = {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 28, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
-  header: { alignItems: 'center', marginBottom: 30 },
+  inner: { flex: 1, paddingHorizontal: 24, alignSelf: 'center' as any, width: '100%' },
+  header: { alignItems: 'center', marginBottom: 32 },
   logoWrap: {
-    width: 88, height: 88, borderRadius: 28,
+    width: 88, height: 88, borderRadius: 24,
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 16,
     shadowColor: COLORS.primary,
@@ -328,12 +341,12 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 6,
   },
-  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
-  form: { gap: 14 },
+  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 6, textAlign: 'center' },
+  form: { gap: 12, marginTop: 16 },
   inputWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    height: 56,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    height: 54,
     backgroundColor: COLORS.white,
     borderRadius: 16,
     paddingHorizontal: 16,
@@ -341,24 +354,25 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     ...cardShadow,
   },
-  input: { flex: 1, fontSize: 16, color: COLORS.text },
-  eyeBtn: { padding: 4 },
-  btnPrimaryWrap: { marginTop: 6, borderRadius: 16, ...cardShadow },
-  btnPrimary: { height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  input: { flex: 1, fontSize: 15, color: COLORS.text },
+  eyeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  btnPrimaryWrap: { marginTop: 8, borderRadius: 16, ...cardShadow },
+  btnPrimary: { height: 54, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
   forgotLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
+  bioPlaceholder: { minHeight: 54 + 4 },
   btnBio: {
-    height: 56, backgroundColor: COLORS.white, borderRadius: 16,
+    height: 54, backgroundColor: COLORS.white, borderRadius: 16,
     borderWidth: 1.5, borderColor: COLORS.primary + '50',
     justifyContent: 'center', alignItems: 'center',
     flexDirection: 'row', gap: 8, marginTop: 4,
   },
-  btnBioText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
-  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, marginBottom: 20, ...cardShadow },
-  authTab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
+  btnBioText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
+  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 11, padding: 3, ...cardShadow },
+  authTab: { flex: 1, height: 34, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
   authTabActive: { backgroundColor: COLORS.primary + '15' },
-  authTabText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '700' },
-  authTabTextActive: { color: COLORS.primary, fontSize: 15, fontWeight: '800' },
+  authTabText: { color: COLORS.textSecondary, fontSize: 13.5, fontWeight: '700' },
+  authTabTextActive: { color: COLORS.primary, fontSize: 13.5, fontWeight: '800' },
   agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
   checkbox: {
     width: 22, height: 22, borderRadius: 6, borderWidth: 1.5,
