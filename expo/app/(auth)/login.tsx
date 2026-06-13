@@ -31,19 +31,22 @@ export default function LoginScreen() {
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   useResponsive();
   const { width: winW, height: winH } = useWindowDimensions();
-  // Пропорции от ширины. Clamp до 440 для планшетов.
+  // Все размеры — % от ширины (с iPhone 14 Pro 393pt где владельцу нравится).
   const w = Math.min(winW, 440);
-  const logoSize = Math.round(w * 0.224);     // 88 / 393
+  const logoSize = Math.round(w * 0.224);
   const iconSize = Math.round(logoSize * 0.85);
   const logoRadius = Math.round(logoSize * 0.32);
-  const titleFont = Math.round(w * 0.081);    // 32 / 393
-  const inputH = Math.round(w * 0.143);       // 56 / 393
-  const inputFont = Math.round(w * 0.041);    // 16 / 393
+  const titleFont = Math.round(w * 0.081);
+  const inputH = Math.round(w * 0.143);
+  const inputFont = Math.round(w * 0.041);
   const btnH = inputH;
-  const tabPad = Math.round(w * 0.031);       // 12 / 393
-  const tabFont = Math.round(w * 0.038);      // 15 / 393
-  // Лого фиксированное по верхнему отступу — не «прыгает» при переключении
-  // login↔register. ~12% высоты экрана сверху.
+  const tabPad = Math.round(w * 0.031);
+  const tabFont = Math.round(w * 0.038);
+  const headerBottom = Math.round(w * 0.10);     // gap header→tabs (~40pt на 393)
+  const tabsBottom = Math.round(w * 0.04);       // gap tabs→form
+  const formGap = Math.round(w * 0.04);          // gap между полями
+  const linkTop = Math.round(w * 0.05);          // gap btn→Забыли пароль
+  const bioTop = Math.round(w * 0.04);           // gap Забыли→Face ID
   const headerTop = Math.round(winH * 0.12);
 
   useEffect(() => {
@@ -178,7 +181,7 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
+          <View style={[styles.header, { marginBottom: headerBottom }]}>
             <LinearGradient
               colors={[COLORS.primary, '#8B7FFF']}
               start={{ x: 0, y: 0 }}
@@ -190,7 +193,7 @@ export default function LoginScreen() {
             <Text style={[styles.title, { fontSize: titleFont }]}>Репетиторы</Text>
           </View>
 
-          <View style={styles.authTabs}>
+          <View style={[styles.authTabs, { marginBottom: tabsBottom }]}>
             <Pressable
               style={({ pressed }) => [styles.authTab, { paddingVertical: tabPad }, !isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
               onPress={() => setMode('login')}
@@ -205,7 +208,7 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.form}>
+          <View style={[styles.form, { gap: formGap }]}>
             <View style={[styles.inputWrap, { height: inputH }]}>
               <Mail size={Math.round(inputFont * 1.15)} color={COLORS.textSecondary} />
               <TextInput
@@ -296,7 +299,7 @@ export default function LoginScreen() {
             {!isRegister && (
               <Pressable
                 onPress={() => router.push('/(auth)/forgot-password')}
-                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, marginTop: linkTop })}
               >
                 <Text style={[styles.forgotLink, { fontSize: Math.round(inputFont * 0.9) }]}>Забыли пароль?</Text>
               </Pressable>
@@ -305,7 +308,7 @@ export default function LoginScreen() {
             {!isRegister && bioEnabled && Platform.OS !== 'web' && (
               <Pressable
                 style={({ pressed }) => [
-                  styles.btnBio, { height: btnH },
+                  styles.btnBio, { height: btnH, marginTop: bioTop },
                   { transform: [{ scale: pressed ? 0.98 : 1 }] },
                 ]}
                 onPress={handleBioLogin}
@@ -333,7 +336,7 @@ const cardShadow = {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   inner: { flex: 1, padding: 28, justifyContent: 'center', alignSelf: 'center' as any, width: '100%' },
-  header: { alignItems: 'center', marginBottom: 22 },
+  header: { alignItems: 'center' },
   logoWrap: {
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 16,
@@ -345,7 +348,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 32, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
   subtitle: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
-  form: { gap: 14 },
+  form: {},
   inputWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     height: 56,
@@ -369,7 +372,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 8, marginTop: 4,
   },
   btnBioText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
-  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, marginBottom: 20, ...cardShadow },
+  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 14, padding: 4, ...cardShadow },
   authTab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
   authTabActive: { backgroundColor: COLORS.primary + '15' },
   authTabText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '700' },
