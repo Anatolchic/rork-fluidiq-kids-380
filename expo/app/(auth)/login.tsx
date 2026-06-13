@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Alert, Pressable, ScrollView, Linking,
-  TouchableOpacity, useWindowDimensions,
+  Platform, ActivityIndicator, Alert, Pressable, ScrollView, Linking, TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -32,11 +31,6 @@ export default function LoginScreen() {
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   useResponsive();
   const insets = useSafeAreaInsets();
-  const { height: screenHeight } = useWindowDimensions();
-
-  // 18% от высоты экрана сверху до верха лого, снизу — breathing room.
-  const topPad = Math.max(0, screenHeight * 0.18 - insets.top);
-  const bottomPad = Math.max(0, screenHeight * 0.18 - insets.bottom);
 
   useEffect(() => {
     (async () => {
@@ -44,6 +38,9 @@ export default function LoginScreen() {
         getBiometricKind(),
         isBiometricSupported(),
       ]);
+      // На native показываем кнопку биометрии всегда, если устройство
+      // поддерживает Face ID/Touch ID. Если креды не сохранены — кнопка
+      // подскажет сначала войти по паролю.
       setBioEnabled(supported);
       setBioKind(kind);
     })();
@@ -109,6 +106,7 @@ export default function LoginScreen() {
 
     setLoading(true);
 
+    // Проверяем заранее — есть ли подтверждённый аккаунт с таким email
     const check = await supabase.rpc('check_email_exists', { p_email: email.trim() });
     if (check.data && check.data.exists && check.data.confirmed) {
       setLoading(false);
@@ -158,177 +156,168 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.kav}
+        style={[styles.inner, { maxWidth: 480 }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.inner}>
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1, justifyContent: 'center',
+            paddingTop: insets.top + 40,
+            paddingBottom: insets.bottom + 24,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <LinearGradient
+              colors={[COLORS.primary, '#8B7FFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoWrap}
+            >
+              <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
+            </LinearGradient>
+            <Text style={styles.title}>Репетиторы</Text>
+          </View>
 
-          {/* ── ШАПКА: лого + переключатель (фиксированы, не зависят от формы) ── */}
-          <View style={[styles.topSection, { paddingTop: topPad }]}>
-            <View style={styles.header}>
+          <View style={styles.authTabs}>
+            <Pressable
+              style={({ pressed }) => [styles.authTab, !isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => setMode('login')}
+            >
+              <Text style={!isRegister ? styles.authTabTextActive : styles.authTabText}>Вход</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.authTab, isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => setMode('register')}
+            >
+              <Text style={isRegister ? styles.authTabTextActive : styles.authTabText}>Регистрация</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.form}>
+            <View style={styles.inputWrap}>
+              <Mail size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+            </View>
+
+            <View style={styles.inputWrap}>
+              <Lock size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Пароль"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPass}
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity onPress={() => setShowPass(v => !v)} hitSlop={10} style={styles.eyeBtn}>
+                {showPass ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+              </TouchableOpacity>
+            </View>
+
+            {/* Confirm password — всегда в DOM для стабильной высоты, скрыт в режиме входа */}
+            <View
+              style={[styles.inputWrap, !isRegister && styles.invisible]}
+              pointerEvents={!isRegister ? 'none' : 'auto'}
+            >
+              <Lock size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Повторите пароль"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirm}
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                editable={isRegister}
+              />
+              <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
+                {showConfirm ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+              </TouchableOpacity>
+            </View>
+
+            {/* Согласие — всегда в DOM для стабильной высоты, скрыто в режиме входа */}
+            <View
+              style={!isRegister ? styles.invisible : undefined}
+              pointerEvents={!isRegister ? 'none' : 'auto'}
+            >
+              <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(v => !v)} activeOpacity={0.7}>
+                <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+                  {agreed && <Check size={14} color="#fff" strokeWidth={3} />}
+                </View>
+                <Text style={styles.agreeText}>
+                  Я согласен с{' '}
+                  <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/terms.html')}>
+                    условиями использования
+                  </Text>
+                  {' '}и{' '}
+                  <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/privacy.html')}>
+                    политикой обработки персональных данных
+                  </Text>
+                  {' '}(ФЗ-152)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.btnPrimaryWrap,
+                (isRegister && !agreed) && { opacity: 0.5 },
+                { transform: [{ scale: pressed ? 0.98 : 1 }] },
+              ]}
+              onPress={isRegister ? handleRegister : handleLogin}
+              disabled={loading || (isRegister && !agreed)}
+            >
               <LinearGradient
                 colors={[COLORS.primary, '#8B7FFF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.logoWrap}
+                style={styles.btnPrimary}
+                pointerEvents="none"
               >
-                <GraduationCap size={62} color="#fff" strokeWidth={2.2} />
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>}
               </LinearGradient>
-              <Text style={styles.title}>Репетиторы</Text>
-            </View>
+            </Pressable>
 
-            <View style={styles.authTabs}>
-              <Pressable
-                style={({ pressed }) => [styles.authTab, !isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
-                onPress={() => setMode('login')}
-              >
-                <Text style={!isRegister ? styles.authTabTextActive : styles.authTabText}>Вход</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.authTab, isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
-                onPress={() => setMode('register')}
-              >
-                <Text style={isRegister ? styles.authTabTextActive : styles.authTabText}>Регистрация</Text>
-              </Pressable>
-            </View>
-          </View>
+            {/* Забыли пароль — всегда в DOM для стабильной высоты, скрыт в режиме регистрации */}
+            <Pressable
+              onPress={() => router.push('/(auth)/forgot-password')}
+              style={({ pressed }) => ({ opacity: isRegister ? 0 : (pressed ? 0.5 : 1) })}
+              pointerEvents={isRegister ? 'none' : 'auto'}
+            >
+              <Text style={styles.forgotLink}>Забыли пароль?</Text>
+            </Pressable>
 
-          {/* ── ФОРМА + КНОПКА: один ScrollView, кнопка прямо под полями ── */}
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.form}>
-
-              <View style={styles.inputWrap}>
-                <Mail size={16} color={COLORS.textSecondary} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  placeholderTextColor={COLORS.textSecondary}
-                />
-              </View>
-
-              <View style={styles.inputWrap}>
-                <Lock size={16} color={COLORS.textSecondary} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Пароль"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPass}
-                  placeholderTextColor={COLORS.textSecondary}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowPass(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                  {showPass ? <EyeOff size={16} color={COLORS.textSecondary} /> : <Eye size={16} color={COLORS.textSecondary} />}
-                </TouchableOpacity>
-              </View>
-
-              {/* Повтор пароля — всегда в DOM, скрыт в режиме входа */}
-              <View
-                style={[styles.inputWrap, !isRegister && styles.invisible]}
-                pointerEvents={!isRegister ? 'none' : 'auto'}
-              >
-                <Lock size={16} color={COLORS.textSecondary} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Повторите пароль"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirm}
-                  placeholderTextColor={COLORS.textSecondary}
-                  autoCapitalize="none"
-                  editable={isRegister}
-                />
-                <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                  {showConfirm ? <EyeOff size={16} color={COLORS.textSecondary} /> : <Eye size={16} color={COLORS.textSecondary} />}
-                </TouchableOpacity>
-              </View>
-
-              {/* Согласие — всегда в DOM, скрыто в режиме входа */}
-              <View
-                style={!isRegister ? styles.invisible : undefined}
-                pointerEvents={!isRegister ? 'none' : 'auto'}
-              >
-                <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(v => !v)} activeOpacity={0.7}>
-                  <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-                    {agreed && <Check size={12} color="#fff" strokeWidth={3} />}
-                  </View>
-                  <Text style={styles.agreeText}>
-                    Я согласен с{' '}
-                    <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/terms.html')}>
-                      условиями использования
-                    </Text>
-                    {' '}и{' '}
-                    <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/privacy.html')}>
-                      политикой обработки персональных данных
-                    </Text>
-                    {' '}(ФЗ-152)
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Забыли пароль — всегда в DOM, скрыт в режиме регистрации */}
-              <Pressable
-                onPress={() => router.push('/(auth)/forgot-password')}
-                style={({ pressed }) => ({ opacity: isRegister ? 0 : (pressed ? 0.5 : 1) })}
-                pointerEvents={isRegister ? 'none' : 'auto'}
-              >
-                <Text style={styles.forgotLink}>Забыли пароль?</Text>
-              </Pressable>
-
-              {/* Биометрия — только native, всегда занимает место */}
-              {Platform.OS !== 'web' && (
-                !isRegister && bioEnabled ? (
-                  <Pressable
-                    style={({ pressed }) => [styles.btnBio, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
-                    onPress={handleBioLogin}
-                    disabled={loading}
-                  >
-                    <Fingerprint size={18} color={COLORS.primary} />
-                    <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
-                  </Pressable>
-                ) : (
-                  <View style={styles.bioPlaceholder} />
-                )
-              )}
-
-              {/* ── КНОПКА: прямо под последним полем ── */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.btnPrimaryWrap,
-                  (isRegister && !agreed) && { opacity: 0.5 },
-                  { transform: [{ scale: pressed ? 0.98 : 1 }] },
-                ]}
-                onPress={isRegister ? handleRegister : handleLogin}
-                disabled={loading || (isRegister && !agreed)}
-              >
-                <LinearGradient
-                  colors={[COLORS.primary, '#8B7FFF']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.btnPrimary}
-                  pointerEvents="none"
+            {Platform.OS !== 'web' && (
+              !isRegister && bioEnabled ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.btnBio,
+                    { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                  ]}
+                  onPress={handleBioLogin}
+                  disabled={loading}
                 >
-                  {loading
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.btnPrimaryText}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>
-                  }
-                </LinearGradient>
-              </Pressable>
-
-            </View>
-          </ScrollView>
-
-        </View>
+                  <Fingerprint size={20} color={COLORS.primary} />
+                  <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.bioPlaceholder} />
+              )
+            )}
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -344,75 +333,58 @@ const cardShadow = {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  kav: { flex: 1 },
-  inner: { flex: 1, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
-
-  // Фиксированная шапка — лого и таб-переключатель
-  topSection: { paddingHorizontal: 24 },
-  header: { alignItems: 'center', marginBottom: 16 },
+  inner: { flex: 1, paddingHorizontal: 24, alignSelf: 'center' as any, width: '100%' },
+  header: { alignItems: 'center', marginBottom: 32 },
   logoWrap: {
-    width: 76, height: 76, borderRadius: 20,
+    width: 88, height: 88, borderRadius: 24,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  title: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  authTabs: {
-    flexDirection: 'row', backgroundColor: COLORS.white,
-    borderRadius: 10, padding: 3, ...cardShadow,
-  },
-  authTab: { flex: 1, height: 30, justifyContent: 'center', alignItems: 'center', borderRadius: 7 },
-  authTabActive: { backgroundColor: COLORS.primary + '15' },
-  authTabText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
-  authTabTextActive: { color: COLORS.primary, fontSize: 13, fontWeight: '800' },
-
-  // Зона с полями — ScrollView обеспечивает клавиатурный отступ
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 12 },
-
-  // Форма — все поля и кнопка идут подряд
-  form: { gap: 12 },
+  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 6, textAlign: 'center' },
+  form: { gap: 12, marginTop: 16 },
   inputWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    height: 48,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    height: 54,
     backgroundColor: COLORS.white,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: 'transparent',
     ...cardShadow,
   },
-  input: { flex: 1, fontSize: 14, color: COLORS.text },
-  eyeBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-
-  // Кнопки и ссылки
-  btnPrimaryWrap: { borderRadius: 14, ...cardShadow },
-  btnPrimary: { height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
-  forgotLink: { color: COLORS.primary, fontSize: 13, fontWeight: '700', textAlign: 'center', paddingVertical: 4 },
-  bioPlaceholder: { height: 44 },
+  input: { flex: 1, fontSize: 15, color: COLORS.text },
+  eyeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  btnPrimaryWrap: { marginTop: 8, borderRadius: 16, ...cardShadow },
+  btnPrimary: { height: 54, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  forgotLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
+  bioPlaceholder: { minHeight: 54 + 4 },
   btnBio: {
-    height: 44, backgroundColor: COLORS.white, borderRadius: 14,
+    height: 54, backgroundColor: COLORS.white, borderRadius: 16,
     borderWidth: 1.5, borderColor: COLORS.primary + '50',
     justifyContent: 'center', alignItems: 'center',
-    flexDirection: 'row', gap: 8,
+    flexDirection: 'row', gap: 8, marginTop: 4,
   },
-  btnBioText: { color: COLORS.primary, fontSize: 13, fontWeight: '700' },
-
-  // Согласие
-  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 },
+  btnBioText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
+  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 11, padding: 3, ...cardShadow },
+  authTab: { flex: 1, height: 34, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
+  authTabActive: { backgroundColor: COLORS.primary + '15' },
+  authTabText: { color: COLORS.textSecondary, fontSize: 13.5, fontWeight: '700' },
+  authTabTextActive: { color: COLORS.primary, fontSize: 13.5, fontWeight: '800' },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
   checkbox: {
-    width: 20, height: 20, borderRadius: 5, borderWidth: 1.5,
+    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5,
     borderColor: COLORS.border, backgroundColor: COLORS.white,
-    justifyContent: 'center', alignItems: 'center', marginTop: 1,
+    justifyContent: 'center', alignItems: 'center', marginTop: 2,
   },
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  agreeText: { flex: 1, fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
+  agreeText: { flex: 1, fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
   agreeLink: { color: COLORS.primary, fontWeight: '700' },
-
   invisible: { opacity: 0 },
 });
