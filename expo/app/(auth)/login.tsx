@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView,
+  View, Text, TextInput, SafeAreaView, KeyboardAvoidingView,
   Platform, ActivityIndicator, Alert, Pressable, ScrollView, Linking, TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -31,6 +32,7 @@ export default function LoginScreen() {
   const [bioKind, setBioKind] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   useResponsive();
   const insets = useSafeAreaInsets();
+  const { height: sh } = useWindowDimensions();
 
   useEffect(() => {
     (async () => {
@@ -38,9 +40,6 @@ export default function LoginScreen() {
         getBiometricKind(),
         isBiometricSupported(),
       ]);
-      // На native показываем кнопку биометрии всегда, если устройство
-      // поддерживает Face ID/Touch ID. Если креды не сохранены — кнопка
-      // подскажет сначала войти по паролю.
       setBioEnabled(supported);
       setBioKind(kind);
     })();
@@ -106,7 +105,6 @@ export default function LoginScreen() {
 
     setLoading(true);
 
-    // Проверяем заранее — есть ли подтверждённый аккаунт с таким email
     const check = await supabase.rpc('check_email_exists', { p_email: email.trim() });
     if (check.data && check.data.exists && check.data.confirmed) {
       setLoading(false);
@@ -152,54 +150,138 @@ export default function LoginScreen() {
 
   const isRegister = mode === 'register';
 
+  // Proportional layout: zone = 64% of screen height
+  const zone = sh * 0.64;
+  // topPad pushes content down so logo top = 18% from absolute screen top
+  const topPad = Math.max(0, sh * 0.18 - insets.top);
+  // bottomPad ensures button bottom = 18% from absolute screen bottom in register mode
+  const bottomPad = Math.max(0, sh * 0.18 - insets.bottom);
+
+  // Element heights as fractions of zone (register mode sums to ~1.000)
+  const logoH     = zone * 0.170;
+  const gLogoTtl  = zone * 0.035;
+  const titleH    = zone * 0.065;
+  const gTtlTabs  = zone * 0.025;
+  const tabsH     = zone * 0.074;
+  const gTabsForm = zone * 0.045;
+  const inputH    = zone * 0.104;
+  const gField    = zone * 0.021;
+  const agreeH    = zone * 0.089;
+  const btnH      = zone * 0.100;
+
+  // Interior sizes derived from element heights
+  const logoIcon    = logoH  * 0.78;
+  const logoR       = logoH  * 0.28;
+  const titleFS     = titleH * 0.80;
+  const tabFS       = (tabsH - 6) * 0.42;
+  const tabR        = tabsH  * 0.28;
+  const inputR      = inputH * 0.29;
+  const inputPH     = inputH * 0.25;
+  const inputIcon   = inputH * 0.32;
+  const inputFS     = inputH * 0.27;
+  const eyeSize     = inputH * 0.55;
+  const checkSz     = agreeH * 0.38;
+  const agreeFS     = Math.max(11, agreeH * 0.25);
+  const agreeLH     = Math.max(15, agreeH * 0.32);
+  const btnR        = btnH   * 0.28;
+  const btnFS       = btnH   * 0.30;
+
+  const shadow = {
+    shadowColor: '#0006' as string,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+  };
+
+  const inputStyle = {
+    height: inputH,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: COLORS.white,
+    borderRadius: inputR,
+    paddingHorizontal: inputPH,
+    gap: inputPH * 0.6,
+    ...shadow,
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={[styles.inner, { maxWidth: 480 }]}
+        style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1, justifyContent: 'center',
-            paddingTop: insets.top + 40,
-            paddingBottom: insets.bottom + 24,
-          }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
         >
-          <View style={styles.header}>
-            <LinearGradient
-              colors={[COLORS.primary, '#8B7FFF']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.logoWrap}
-            >
-              <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
-            </LinearGradient>
-            <Text style={styles.title}>Репетиторы</Text>
-          </View>
+          <View style={{ maxWidth: 480, alignSelf: 'center', width: '100%', paddingHorizontal: 24 }}>
 
-          <View style={styles.authTabs}>
-            <Pressable
-              style={({ pressed }) => [styles.authTab, !isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => setMode('login')}
-            >
-              <Text style={!isRegister ? styles.authTabTextActive : styles.authTabText}>Вход</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.authTab, isRegister && styles.authTabActive, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => setMode('register')}
-            >
-              <Text style={isRegister ? styles.authTabTextActive : styles.authTabText}>Регистрация</Text>
-            </Pressable>
-          </View>
+            <View style={{ height: topPad }} />
 
-          <View style={styles.form}>
-            <View style={styles.inputWrap}>
-              <Mail size={18} color={COLORS.textSecondary} />
+            {/* Logo */}
+            <View style={{ height: logoH, alignItems: 'center', justifyContent: 'center' }}>
+              <LinearGradient
+                colors={[COLORS.primary, '#8B7FFF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                  width: logoH, height: logoH, borderRadius: logoR,
+                  justifyContent: 'center', alignItems: 'center',
+                  shadowColor: COLORS.primary,
+                  shadowOffset: { width: 0, height: 8 },
+                  shadowOpacity: 0.3, shadowRadius: 16, elevation: 6,
+                }}
+              >
+                <GraduationCap size={logoIcon} color="#fff" strokeWidth={2.2} />
+              </LinearGradient>
+            </View>
+
+            <View style={{ height: gLogoTtl }} />
+
+            {/* Title */}
+            <View style={{ height: titleH, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: titleFS, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 }}>
+                Репетиторы
+              </Text>
+            </View>
+
+            <View style={{ height: gTtlTabs }} />
+
+            {/* Mode tabs */}
+            <View style={{ height: tabsH, flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: tabR, padding: 3, ...shadow }}>
+              {(['login', 'register'] as Mode[]).map(m => {
+                const active = mode === m;
+                return (
+                  <Pressable
+                    key={m}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      justifyContent: 'center' as const,
+                      alignItems: 'center' as const,
+                      borderRadius: tabR * 0.78,
+                      backgroundColor: active ? COLORS.primary + '15' : 'transparent',
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                    onPress={() => setMode(m)}
+                  >
+                    <Text style={{ color: active ? COLORS.primary : COLORS.textSecondary, fontSize: tabFS, fontWeight: active ? '800' : '700' }}>
+                      {m === 'login' ? 'Вход' : 'Регистрация'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={{ height: gTabsForm }} />
+
+            {/* Email */}
+            <View style={inputStyle}>
+              <Mail size={inputIcon} color={COLORS.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={{ flex: 1, fontSize: inputFS, color: COLORS.text }}
                 placeholder="Email"
                 value={email}
                 onChangeText={setEmail}
@@ -210,10 +292,13 @@ export default function LoginScreen() {
               />
             </View>
 
-            <View style={styles.inputWrap}>
-              <Lock size={18} color={COLORS.textSecondary} />
+            <View style={{ height: gField }} />
+
+            {/* Password */}
+            <View style={inputStyle}>
+              <Lock size={inputIcon} color={COLORS.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={{ flex: 1, fontSize: inputFS, color: COLORS.text }}
                 placeholder="Пароль"
                 value={password}
                 onChangeText={setPassword}
@@ -221,61 +306,85 @@ export default function LoginScreen() {
                 placeholderTextColor={COLORS.textSecondary}
                 autoCapitalize="none"
               />
-              <TouchableOpacity onPress={() => setShowPass(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                {showPass ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
+              <TouchableOpacity
+                onPress={() => setShowPass(v => !v)}
+                hitSlop={10}
+                style={{ width: eyeSize, height: eyeSize, alignItems: 'center', justifyContent: 'center' }}
+              >
+                {showPass ? <EyeOff size={inputIcon} color={COLORS.textSecondary} /> : <Eye size={inputIcon} color={COLORS.textSecondary} />}
               </TouchableOpacity>
             </View>
 
-            {/* Confirm password — всегда в DOM для стабильной высоты, скрыт в режиме входа */}
-            <View
-              style={[styles.inputWrap, !isRegister && styles.invisible]}
-              pointerEvents={!isRegister ? 'none' : 'auto'}
-            >
-              <Lock size={18} color={COLORS.textSecondary} />
-              <TextInput
-                style={styles.input}
-                placeholder="Повторите пароль"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showConfirm}
-                placeholderTextColor={COLORS.textSecondary}
-                autoCapitalize="none"
-                editable={isRegister}
-              />
-              <TouchableOpacity onPress={() => setShowConfirm(v => !v)} hitSlop={10} style={styles.eyeBtn}>
-                {showConfirm ? <EyeOff size={18} color={COLORS.textSecondary} /> : <Eye size={18} color={COLORS.textSecondary} />}
-              </TouchableOpacity>
-            </View>
+            {/* Register-only: confirm + agree */}
+            {isRegister && (
+              <>
+                <View style={{ height: gField }} />
 
-            {/* Согласие — всегда в DOM для стабильной высоты, скрыто в режиме входа */}
-            <View
-              style={!isRegister ? styles.invisible : undefined}
-              pointerEvents={!isRegister ? 'none' : 'auto'}
-            >
-              <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(v => !v)} activeOpacity={0.7}>
-                <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-                  {agreed && <Check size={14} color="#fff" strokeWidth={3} />}
+                {/* Confirm password */}
+                <View style={inputStyle}>
+                  <Lock size={inputIcon} color={COLORS.textSecondary} />
+                  <TextInput
+                    style={{ flex: 1, fontSize: inputFS, color: COLORS.text }}
+                    placeholder="Повторите пароль"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirm}
+                    placeholderTextColor={COLORS.textSecondary}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirm(v => !v)}
+                    hitSlop={10}
+                    style={{ width: eyeSize, height: eyeSize, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {showConfirm ? <EyeOff size={inputIcon} color={COLORS.textSecondary} /> : <Eye size={inputIcon} color={COLORS.textSecondary} />}
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.agreeText}>
-                  Я согласен с{' '}
-                  <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/terms.html')}>
-                    условиями использования
-                  </Text>
-                  {' '}и{' '}
-                  <Text style={styles.agreeLink} onPress={() => Linking.openURL('https://repetitory-app.ru/privacy.html')}>
-                    политикой обработки персональных данных
-                  </Text>
-                  {' '}(ФЗ-152)
-                </Text>
-              </TouchableOpacity>
-            </View>
 
+                <View style={{ height: gField }} />
+
+                {/* Agree */}
+                <TouchableOpacity
+                  style={{ height: agreeH, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                  onPress={() => setAgreed(v => !v)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{
+                    width: checkSz, height: checkSz, borderRadius: checkSz * 0.27, flexShrink: 0,
+                    borderWidth: 1.5, borderColor: agreed ? COLORS.primary : COLORS.border,
+                    backgroundColor: agreed ? COLORS.primary : COLORS.white,
+                    justifyContent: 'center', alignItems: 'center',
+                  }}>
+                    {agreed && <Check size={checkSz * 0.55} color="#fff" strokeWidth={3} />}
+                  </View>
+                  <Text style={{ flex: 1, fontSize: agreeFS, color: COLORS.textSecondary, lineHeight: agreeLH }}>
+                    Я согласен с{' '}
+                    <Text style={{ color: COLORS.primary, fontWeight: '700' }} onPress={() => Linking.openURL('https://repetitory-app.ru/terms.html')}>
+                      условиями использования
+                    </Text>
+                    {' '}и{' '}
+                    <Text style={{ color: COLORS.primary, fontWeight: '700' }} onPress={() => Linking.openURL('https://repetitory-app.ru/privacy.html')}>
+                      политикой обработки персональных данных
+                    </Text>
+                    {' '}(ФЗ-152)
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={{ height: gField }} />
+              </>
+            )}
+
+            {!isRegister && <View style={{ height: gField }} />}
+
+            {/* Primary button */}
             <Pressable
-              style={({ pressed }) => [
-                styles.btnPrimaryWrap,
-                (isRegister && !agreed) && { opacity: 0.5 },
-                { transform: [{ scale: pressed ? 0.98 : 1 }] },
-              ]}
+              style={({ pressed }) => ({
+                height: btnH,
+                borderRadius: btnR,
+                opacity: (isRegister && !agreed) ? 0.5 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+                ...shadow,
+              })}
               onPress={isRegister ? handleRegister : handleLogin}
               disabled={loading || (isRegister && !agreed)}
             >
@@ -283,108 +392,61 @@ export default function LoginScreen() {
                 colors={[COLORS.primary, '#8B7FFF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.btnPrimary}
+                style={{ flex: 1, borderRadius: btnR, justifyContent: 'center', alignItems: 'center' }}
                 pointerEvents="none"
               >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>{isRegister ? 'Зарегистрироваться' : 'Войти'}</Text>}
+                {loading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={{ color: '#fff', fontSize: btnFS, fontWeight: '700', letterSpacing: 0.3 }}>
+                      {isRegister ? 'Зарегистрироваться' : 'Войти'}
+                    </Text>}
               </LinearGradient>
             </Pressable>
 
-            {/* Забыли пароль — всегда в DOM для стабильной высоты, скрыт в режиме регистрации */}
-            <Pressable
-              onPress={() => router.push('/(auth)/forgot-password')}
-              style={({ pressed }) => ({ opacity: isRegister ? 0 : (pressed ? 0.5 : 1) })}
-              pointerEvents={isRegister ? 'none' : 'auto'}
-            >
-              <Text style={styles.forgotLink}>Забыли пароль?</Text>
-            </Pressable>
-
-            {Platform.OS !== 'web' && (
-              !isRegister && bioEnabled ? (
+            {/* Login-only extras */}
+            {!isRegister && (
+              <>
                 <Pressable
-                  style={({ pressed }) => [
-                    styles.btnBio,
-                    { transform: [{ scale: pressed ? 0.98 : 1 }] },
-                  ]}
-                  onPress={handleBioLogin}
-                  disabled={loading}
+                  onPress={() => router.push('/(auth)/forgot-password')}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
                 >
-                  <Fingerprint size={20} color={COLORS.primary} />
-                  <Text style={styles.btnBioText}>Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}</Text>
+                  <Text style={{ color: COLORS.primary, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 }}>
+                    Забыли пароль?
+                  </Text>
                 </Pressable>
-              ) : (
-                <View style={styles.bioPlaceholder} />
-              )
+
+                {Platform.OS !== 'web' && bioEnabled && (
+                  <Pressable
+                    style={({ pressed }) => ({
+                      height: btnH,
+                      backgroundColor: COLORS.white,
+                      borderRadius: btnR,
+                      borderWidth: 1.5,
+                      borderColor: COLORS.primary + '50',
+                      justifyContent: 'center' as const,
+                      alignItems: 'center' as const,
+                      flexDirection: 'row' as const,
+                      gap: 8,
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                    })}
+                    onPress={handleBioLogin}
+                    disabled={loading}
+                  >
+                    <Fingerprint size={btnH * 0.37} color={COLORS.primary} />
+                    <Text style={{ color: COLORS.primary, fontSize: btnFS * 0.87, fontWeight: '700' }}>
+                      Войти через {bioKind === 'face' ? 'Face ID' : 'Touch ID'}
+                    </Text>
+                  </Pressable>
+                )}
+              </>
             )}
+
+            {/* 18% bottom spacer in register mode */}
+            {isRegister && <View style={{ height: bottomPad }} />}
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
-
-const cardShadow = {
-  shadowColor: '#0006',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.08,
-  shadowRadius: 14,
-  elevation: 3,
-};
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, paddingHorizontal: 24, alignSelf: 'center' as any, width: '100%' },
-  header: { alignItems: 'center', marginBottom: 32 },
-  logoWrap: {
-    width: 88, height: 88, borderRadius: 24,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 6, textAlign: 'center' },
-  form: { gap: 12, marginTop: 16 },
-  inputWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    height: 54,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    ...cardShadow,
-  },
-  input: { flex: 1, fontSize: 15, color: COLORS.text },
-  eyeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  btnPrimaryWrap: { marginTop: 8, borderRadius: 16, ...cardShadow },
-  btnPrimary: { height: 54, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
-  forgotLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
-  bioPlaceholder: { minHeight: 54 + 4 },
-  btnBio: {
-    height: 54, backgroundColor: COLORS.white, borderRadius: 16,
-    borderWidth: 1.5, borderColor: COLORS.primary + '50',
-    justifyContent: 'center', alignItems: 'center',
-    flexDirection: 'row', gap: 8, marginTop: 4,
-  },
-  btnBioText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
-  authTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 11, padding: 3, ...cardShadow },
-  authTab: { flex: 1, height: 34, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
-  authTabActive: { backgroundColor: COLORS.primary + '15' },
-  authTabText: { color: COLORS.textSecondary, fontSize: 13.5, fontWeight: '700' },
-  authTabTextActive: { color: COLORS.primary, fontSize: 13.5, fontWeight: '800' },
-  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5,
-    borderColor: COLORS.border, backgroundColor: COLORS.white,
-    justifyContent: 'center', alignItems: 'center', marginTop: 2,
-  },
-  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  agreeText: { flex: 1, fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  agreeLink: { color: COLORS.primary, fontWeight: '700' },
-  invisible: { opacity: 0 },
-});
