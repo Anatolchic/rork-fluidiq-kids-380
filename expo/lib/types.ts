@@ -17,7 +17,19 @@ export interface TutorProfile {
   payment_details: string; is_published: boolean; created_at: string;
 }
 export interface StudentProfile { id: string; user_id: string; name: string; photo_url: string|null; favorites: string[]; created_at: string; }
+
+/** @deprecated Старая модель availability-окон. Заменена на TutorSlot (tutor_slots + RPC book_slot). */
 export interface TutorAvailability { id: string; tutor_id: string; day_of_week: number; start_time: string; end_time: string; }
+
+export interface TutorSlot {
+  id: string;
+  tutor_id: string;
+  slot_start: string;        // ISO timestamp
+  duration_minutes: number;  // 30 | 60 | 90 | 120
+  is_intro: boolean;
+  booking_id: string | null;
+  created_at: string;
+}
 export interface Booking {
   id: string; student_id: string; tutor_id: string; subject: Subject; level: Level;
   start_time: string; end_time: string; duration: LessonDuration; topic: string|null;

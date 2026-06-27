@@ -17,7 +17,6 @@ export default function PublicTutorProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [tutor, setTutor] = useState<TutorProfile | null>(null);
   const [avails, setAvails] = useState<any[]>([]);
-  const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -32,40 +31,31 @@ export default function PublicTutorProfile() {
     setLoading(true);
     const monthStart = startOfMonth(month).toISOString();
     const monthEnd = addMonths(startOfMonth(month), 1).toISOString();
-    const [t, a, b, sub] = await Promise.all([
+    const [t, slots, sub] = await Promise.all([
       supabase.from('tutor_profiles').select('*').eq('user_id', id).maybeSingle(),
-      supabase.from('tutor_availability').select('*').eq('tutor_id', id),
-      supabase.from('bookings').select('start_time, end_time, status').eq('tutor_id', id)
-        .gte('start_time', monthStart).lt('start_time', monthEnd)
-        .in('status', ['pending', 'confirmed', 'active']),
+      // Только свободные слоты в выбранном месяце
+      supabase.from('tutor_slots').select('slot_start, duration_minutes')
+        .eq('tutor_id', id)
+        .is('booking_id', null)
+        .gte('slot_start', monthStart).lt('slot_start', monthEnd),
       supabase.from('tutor_subscriptions').select('expires_at').eq('tutor_id', id)
         .gt('expires_at', new Date().toISOString()).limit(1).maybeSingle(),
     ]);
     setTutor(t.data);
-    setAvails(a.data || []);
-    setBookings(b.data || []);
+    setAvails(slots.data || []);  // переиспользуем поле avails — теперь это slot-список
     setIsPro(!!sub.data);
     setLoading(false);
   }
 
-  /** Маркеры дат для ученика: hasSlots = есть свободные окна */
+  /** Маркеры дат для ученика: hasSlots = есть свободные слоты */
   const markers = useMemo(() => {
-    const map: Record<string, { hasSlots: boolean }> = {};
-    const today = new Date();
-    for (let i = 0; i < 60; i++) {
-      const d = addDays(today, i);
-      const k = format(d, 'yyyy-MM-dd');
-      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
-      const hasSpecific = avails.some(a => a.specific_date === k);
-      const hasWeekly = avails.some(a => a.specific_date === null && a.day_of_week === dow);
-      if (hasSpecific || hasWeekly) {
-        map[k] = { hasSlots: true };
-      }
-    }
-    // Если все слоты в дате забронированы — снимаем hasSlots
-    // (упрощённо: считаем что если есть хоть один забронированный слот И не больше одного availability — занято)
-    return Object.entries(map).map(([date, m]) => ({ date, hasSlots: m.hasSlots }));
-  }, [avails, bookings]);
+    const byDay = new Map<string, number>();
+    avails.forEach((s: any) => {
+      const k = format(new Date(s.slot_start), 'yyyy-MM-dd');
+      byDay.set(k, (byDay.get(k) || 0) + 1);
+    });
+    return Array.from(byDay.entries()).map(([date, count]) => ({ date, hasSlots: count > 0 }));
+  }, [avails]);
 
   function onBook() {
     if (!tutor) return;

@@ -43,6 +43,22 @@ export default function StudentProfileScreen() {
     ]);
   }
 
+  async function handleDeleteAccount() {
+    Alert.alert(
+      'Удалить аккаунт?',
+      'Аккаунт будет удалён без возможности восстановления. Все будущие бронирования будут отменены. Это требование ФЗ-152.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Удалить', style: 'destructive', onPress: async () => {
+          const { data, error } = await supabase.rpc('delete_my_account', { p_confirm: 'DELETE' });
+          if (error) { Alert.alert('Ошибка', error.message); return; }
+          if (data?.ok === false) { Alert.alert('Не удалось', data.error === 'admin_cannot_self_delete' ? 'Админы не могут удалить себя — обратитесь к другому администратору' : data.error); return; }
+          await supabase.auth.signOut();
+        }},
+      ]
+    );
+  }
+
   if (!session) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
@@ -87,6 +103,14 @@ export default function StudentProfileScreen() {
             </View>
 
             <SettingsSection />
+
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount}>
+              <Text style={styles.deleteText}>Удалить аккаунт</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -113,4 +137,6 @@ const styles = StyleSheet.create({
   roleLabel: { fontSize: 14, color: COLORS.textSecondary },
   logoutBtn: { backgroundColor: COLORS.white, borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.error + '40' },
   logoutText: { color: COLORS.error, fontWeight: '600', fontSize: 16 },
+  deleteBtn: { backgroundColor: 'transparent', borderRadius: 14, padding: 12, alignItems: 'center' },
+  deleteText: { color: COLORS.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
 });

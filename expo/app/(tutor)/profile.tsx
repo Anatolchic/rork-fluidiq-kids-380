@@ -77,9 +77,24 @@ export default function TutorProfileScreen() {
       { text: 'Отмена' },
       { text: 'Выйти', style: 'destructive', onPress: async () => {
         await supabase.auth.signOut();
-        // onAuthStateChange в _layout сам перенаправит на login
       }},
     ]);
+  }
+
+  async function deleteAccount() {
+    Alert.alert(
+      'Удалить аккаунт?',
+      'Аккаунт будет удалён без возможности восстановления. Все будущие бронирования отменятся, профиль будет скрыт из каталога. Это требование ФЗ-152.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Удалить', style: 'destructive', onPress: async () => {
+          const { data, error } = await supabase.rpc('delete_my_account', { p_confirm: 'DELETE' });
+          if (error) { Alert.alert('Ошибка', error.message); return; }
+          if (data?.ok === false) { Alert.alert('Не удалось', data.error === 'admin_cannot_self_delete' ? 'Админы не могут удалить себя' : data.error); return; }
+          await supabase.auth.signOut();
+        }},
+      ]
+    );
   }
 
   if (!session) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -107,6 +122,9 @@ export default function TutorProfileScreen() {
           </View>
           <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
             <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.deleteBtn} onPress={deleteAccount}>
+            <Text style={styles.deleteText}>Удалить аккаунт</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -287,6 +305,13 @@ export default function TutorProfileScreen() {
         </TouchableOpacity>
 
         <SettingsSection />
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.deleteBtn} onPress={deleteAccount}>
+          <Text style={styles.deleteText}>Удалить аккаунт</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -339,6 +364,8 @@ const styles = StyleSheet.create({
   saveText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   logoutBtn: { height: 48, backgroundColor: COLORS.white, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.error + '40' },
   logoutText: { color: COLORS.error, fontSize: 15, fontWeight: '600' },
+  deleteBtn: { padding: 12, alignItems: 'center' },
+  deleteText: { color: COLORS.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   verifiedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.success + '15', borderWidth: 1, borderColor: COLORS.success + '40' },
   verifiedTitle: { fontSize: 15, fontWeight: '700', color: COLORS.success },
   verifiedDate: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
