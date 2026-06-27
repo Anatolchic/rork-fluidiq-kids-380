@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Act
 import { useLocalSearchParams, router } from 'expo-router';
 import { format, differenceInMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar, Clock, BookOpen, Target, MessageSquare, Video, X, AlertTriangle, Repeat } from 'lucide-react-native';
+import { Calendar, Clock, BookOpen, Target, MessageSquare, Video, X, AlertTriangle, Repeat, Star } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS, MIN_BALANCE_KOPECKS } from '../../lib/constants';
 import { Booking } from '../../lib/types';
@@ -20,6 +20,7 @@ export default function BookingDetails() {
   const [tutorBalance, setTutorBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [hasReview, setHasReview] = useState(false);
 
   useEffect(() => { if (id) load(); }, [id]);
 
@@ -42,6 +43,11 @@ export default function BookingDetails() {
     if (b.data?.tutor_id && profile?.role === 'tutor') {
       const { data: t } = await supabase.from('tutor_profiles').select('balance').eq('user_id', b.data.tutor_id).maybeSingle();
       setTutorBalance(t?.balance ?? null);
+    }
+    // Проверим есть ли уже отзыв
+    if (b.data?.status === 'completed') {
+      const { data: rev } = await supabase.from('reviews').select('id').eq('booking_id', id).maybeSingle();
+      setHasReview(!!rev);
     }
     setLoading(false);
   }
@@ -178,6 +184,19 @@ export default function BookingDetails() {
             <Text style={styles.chatBtnText}>Перейти в чат</Text>
           </TouchableOpacity>
         )}
+
+        {isStudent && booking.status === 'completed' && !hasReview && (
+          <TouchableOpacity style={styles.reviewBtn} onPress={() => router.push(`/review/${booking.id}`)}>
+            <Star size={18} color="#fff" fill="#fff" />
+            <Text style={styles.reviewBtnText}>Оставить отзыв</Text>
+          </TouchableOpacity>
+        )}
+        {isStudent && booking.status === 'completed' && hasReview && (
+          <View style={styles.reviewDone}>
+            <Star size={16} color={COLORS.success} fill={COLORS.success} />
+            <Text style={styles.reviewDoneText}>Отзыв оставлен — спасибо!</Text>
+          </View>
+        )}
       </ScrollView>
 
       <View style={styles.actions}>
@@ -262,6 +281,10 @@ const styles = StyleSheet.create({
   warnSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   chatBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.primary + '30' },
   chatBtnText: { fontSize: 15, color: COLORS.primary, fontWeight: '700' },
+  reviewBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.warning, borderRadius: 12, padding: 14, marginTop: 8 },
+  reviewBtnText: { fontSize: 15, color: '#fff', fontWeight: '700' },
+  reviewDone: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.success + '15', borderRadius: 12, padding: 14, marginTop: 8 },
+  reviewDoneText: { fontSize: 14, color: COLORS.success, fontWeight: '700' },
   seriesCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary + '10', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.primary + '30' },
   seriesTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   seriesSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2, lineHeight: 15 },

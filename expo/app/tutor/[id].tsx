@@ -13,6 +13,15 @@ import { useAuthStore } from '../../stores/auth';
 import { openDirectChat } from '../../lib/direct-chats';
 import { ru } from '../../lib/errors';
 
+type ReviewItem = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  student_id: string;
+  tutor_reply: string | null;
+};
+
 export default function PublicTutorProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [tutor, setTutor] = useState<TutorProfile | null>(null);
@@ -22,6 +31,8 @@ export default function PublicTutorProfile() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [openingChat, setOpeningChat] = useState(false);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [studentNames, setStudentNames] = useState<Record<string, string>>({});
   const { contentMaxWidth } = useResponsive();
   const { session, profile } = useAuthStore();
 
@@ -31,19 +42,34 @@ export default function PublicTutorProfile() {
     setLoading(true);
     const monthStart = startOfMonth(month).toISOString();
     const monthEnd = addMonths(startOfMonth(month), 1).toISOString();
-    const [t, slots, sub] = await Promise.all([
+    const [t, slots, sub, rev] = await Promise.all([
       supabase.from('tutor_profiles').select('*').eq('user_id', id).maybeSingle(),
-      // Только свободные слоты в выбранном месяце
       supabase.from('tutor_slots').select('slot_start, duration_minutes')
         .eq('tutor_id', id)
         .is('booking_id', null)
         .gte('slot_start', monthStart).lt('slot_start', monthEnd),
       supabase.from('tutor_subscriptions').select('expires_at').eq('tutor_id', id)
         .gt('expires_at', new Date().toISOString()).limit(1).maybeSingle(),
+      supabase.from('reviews').select('id, rating, comment, created_at, student_id, tutor_reply')
+        .eq('tutor_id', id)
+        .order('created_at', { ascending: false })
+        .limit(20),
     ]);
     setTutor(t.data);
-    setAvails(slots.data || []);  // переиспользуем поле avails — теперь это slot-список
+    setAvails(slots.data || []);
     setIsPro(!!sub.data);
+    setReviews((rev.data || []) as ReviewItem[]);
+
+    // Подгружу имена студентов отзывов одним запросом
+    const sids = Array.from(new Set((rev.data || []).map((r: any) => r.student_id)));
+    if (sids.length > 0) {
+      const { data: ps } = await supabase
+        .from('student_profiles').select('user_id, name')
+        .in('user_id', sids);
+      const map: Record<string, string> = {};
+      (ps || []).forEach((p: any) => { map[p.user_id] = p.name; });
+      setStudentNames(map);
+    }
     setLoading(false);
   }
 
@@ -168,6 +194,44 @@ export default function PublicTutorProfile() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Отзывы */}
+        {reviews.length > 0 && (
+          <View style={s.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={s.sectionTitle}>Отзывы ({tutor?.reviews_count ?? reviews.length})</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Star size={16} color={COLORS.warning} fill={COLORS.warning} />
+                <Text style={{ fontWeight: '700', color: COLORS.text, fontSize: 14 }}>{(tutor?.rating ?? 0).toFixed(1)}</Text>
+              </View>
+            </View>
+            {reviews.slice(0, 5).map(r => (
+              <View key={r.id} style={s.reviewItem}>
+                <View style={s.reviewHead}>
+                  <Text style={s.reviewName}>{studentNames[r.student_id] || 'Ученик'}</Text>
+                  <View style={{ flexDirection: 'row', gap: 1 }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} size={12} color={i < r.rating ? COLORS.warning : COLORS.border} fill={i < r.rating ? COLORS.warning : 'transparent'} />
+                    ))}
+                  </View>
+                </View>
+                {r.comment ? <Text style={s.reviewComment}>{r.comment}</Text> : null}
+                {r.tutor_reply ? (
+                  <View style={s.replyBlock}>
+                    <Text style={s.replyLabel}>Ответ репетитора:</Text>
+                    <Text style={s.replyText}>{r.tutor_reply}</Text>
+                  </View>
+                ) : null}
+                <Text style={s.reviewDate}>{format(new Date(r.created_at), 'd MMM yyyy', { locale: ruLocale })}</Text>
+              </View>
+            ))}
+            {reviews.length > 5 && (
+              <Text style={[s.helper, { textAlign: 'center', marginTop: 4 }]}>
+                и ещё {reviews.length - 5} {reviews.length - 5 === 1 ? 'отзыв' : 'отзывов'}
+              </Text>
+            )}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -210,4 +274,13 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   writeBtnText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
+  card: { backgroundColor: COLORS.white, borderRadius: 14, padding: 16, gap: 10 },
+  reviewItem: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: COLORS.border + '60' },
+  reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  reviewName: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  reviewComment: { fontSize: 13, color: COLORS.text, lineHeight: 18 },
+  reviewDate: { fontSize: 11, color: COLORS.textSecondary, marginTop: 4 },
+  replyBlock: { backgroundColor: COLORS.primaryLight, borderRadius: 10, padding: 10, marginTop: 6, borderLeftWidth: 3, borderLeftColor: COLORS.primary },
+  replyLabel: { fontSize: 11, color: COLORS.primary, fontWeight: '700' },
+  replyText: { fontSize: 13, color: COLORS.text, marginTop: 2 },
 });
