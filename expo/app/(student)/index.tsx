@@ -28,6 +28,9 @@ export default function StudentCatalog() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'pro_first' | 'rating' | 'price_asc' | 'price_desc' | 'newest'>('pro_first');
+  const [workMode, setWorkMode] = useState<'all' | 'online' | 'offline' | 'both'>('all');
+  const [priceMin, setPriceMin] = useState<number>(0);     // в копейках
+  const [priceMax, setPriceMax] = useState<number>(0);     // 0 = без верхней границы
   const [showFilters, setShowFilters] = useState(false);
   const [showAllSubjects, setShowAllSubjects] = useState(false);
   const [modalSearch, setModalSearch] = useState('');
@@ -66,7 +69,7 @@ export default function StudentCatalog() {
     setModalSearch('');
   }
 
-  useEffect(() => { fetchTutors(); }, [selectedSubject, selectedLevel, sortBy]);
+  useEffect(() => { fetchTutors(); }, [selectedSubject, selectedLevel, sortBy, workMode, priceMin, priceMax]);
 
   async function fetchTutors() {
     setLoading(true);
@@ -77,6 +80,9 @@ export default function StudentCatalog() {
 
     if (selectedSubject) query = query.contains('subjects', [selectedSubject]);
     if (selectedLevel) query = query.contains('levels', [selectedLevel]);
+    if (workMode !== 'all') query = query.in('work_mode', workMode === 'both' ? ['both'] : [workMode, 'both']);
+    if (priceMin > 0) query = query.gte('price_per_hour', priceMin);
+    if (priceMax > 0) query = query.lte('price_per_hour', priceMax);
     if (sortBy === 'price_asc') query = query.order('price_per_hour', { ascending: true });
     else if (sortBy === 'price_desc') query = query.order('price_per_hour', { ascending: false });
     else if (sortBy === 'newest') query = query.order('created_at', { ascending: false });
@@ -86,7 +92,12 @@ export default function StudentCatalog() {
     let result = data || [];
     if (search.trim()) {
       const s = search.toLowerCase();
-      result = result.filter(t => t.name.toLowerCase().includes(s));
+      // Ищем в имени, предметах и в bio
+      result = result.filter(t =>
+        t.name.toLowerCase().includes(s) ||
+        (t.subjects || []).some((subj: string) => subj.toLowerCase().includes(s)) ||
+        (t.bio || '').toLowerCase().includes(s)
+      );
     }
 
     const ids = result.map(t => t.user_id);
@@ -120,6 +131,14 @@ export default function StudentCatalog() {
     await fetchTutors();
     setRefreshing(false);
   }, [selectedSubject, selectedLevel, sortBy, search]);
+
+  const searchSuggestions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q || q.length < 2) return [];
+    return SUBJECTS
+      .filter(s => s.toLowerCase().includes(q) && s !== selectedSubject)
+      .slice(0, 6);
+  }, [search, selectedSubject]);
 
   const filteredTutors = search.trim()
     ? tutors.filter(t => t.name.toLowerCase().includes(search.toLowerCase()))
@@ -208,14 +227,29 @@ export default function StudentCatalog() {
                 <Pressable
                   style={({ pressed }) => [
                     styles.filterBtn,
-                    (selectedSubject || selectedLevel) && styles.filterBtnActive,
+                    (selectedSubject || selectedLevel || workMode !== 'all' || priceMin > 0 || priceMax > 0) && styles.filterBtnActive,
                     { transform: [{ scale: pressed ? 0.94 : 1 }] },
                   ]}
                   onPress={() => setShowFilters(!showFilters)}
                 >
-                  <SlidersHorizontal size={18} color={(selectedSubject || selectedLevel) ? COLORS.primary : COLORS.textSecondary} />
+                  <SlidersHorizontal size={18} color={(selectedSubject || selectedLevel || workMode !== 'all' || priceMin > 0 || priceMax > 0) ? COLORS.primary : COLORS.textSecondary} />
                 </Pressable>
               </View>
+
+              {searchSuggestions.length > 0 && (
+                <View style={styles.suggestionsBox}>
+                  {searchSuggestions.map(subj => (
+                    <Pressable
+                      key={subj}
+                      onPress={() => { pickSubjectFromModal(subj); setSearch(''); }}
+                      style={({ pressed }) => [styles.suggestionRow, pressed && { backgroundColor: COLORS.primaryLight }]}
+                    >
+                      <BookOpen size={14} color={COLORS.primary} />
+                      <Text style={styles.suggestionText}>{subj}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
 
             {/* Категории */}
@@ -320,6 +354,48 @@ export default function StudentCatalog() {
                 );
               })}
             </ScrollView>
+
+            {/* Расширенные фильтры */}
+            {showFilters && (
+              <View style={styles.filterPanel}>
+                <Text style={styles.filterLabel}>Формат урока</Text>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                  {([
+                    { k: 'all', l: 'Все' },
+                    { k: 'online', l: 'Онлайн' },
+                    { k: 'offline', l: 'Офлайн' },
+                    { k: 'both', l: 'Гибрид' },
+                  ] as const).map(opt => {
+                    const active = workMode === opt.k;
+                    return (
+                      <Pressable key={opt.k} onPress={() => setWorkMode(opt.k as any)}
+                        style={[styles.sortChip, active && styles.sortChipActive]}>
+                        <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>{opt.l}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.filterLabel, { marginTop: 12 }]}>Цена ₽/час</Text>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                  {([
+                    { lo: 0, hi: 0, l: 'Любая' },
+                    { lo: 0, hi: 100000, l: 'до 1000 ₽' },
+                    { lo: 100000, hi: 200000, l: '1000–2000 ₽' },
+                    { lo: 200000, hi: 300000, l: '2000–3000 ₽' },
+                    { lo: 300000, hi: 0, l: 'от 3000 ₽' },
+                  ] as const).map(opt => {
+                    const active = priceMin === opt.lo && priceMax === opt.hi;
+                    return (
+                      <Pressable key={opt.l} onPress={() => { setPriceMin(opt.lo); setPriceMax(opt.hi); }}
+                        style={[styles.sortChip, active && styles.sortChipActive]}>
+                        <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>{opt.l}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             {loading && (
               <View style={{ gap: 14, marginTop: 12 }}>
@@ -692,6 +768,19 @@ const styles = StyleSheet.create({
   sortChipActive: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary },
   sortChipText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
   sortChipTextActive: { color: COLORS.primary, fontWeight: '700' },
+  filterPanel: {
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  filterLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8, textTransform: 'uppercase' as any, letterSpacing: 0.3 },
+  suggestionsBox: { backgroundColor: COLORS.white, borderRadius: 12, marginHorizontal: 16, marginTop: 6, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' },
+  suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border + '40' },
+  suggestionText: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
 
   // Empty
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32 },
