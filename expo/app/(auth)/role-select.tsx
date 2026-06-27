@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet,
-  SafeAreaView, ActivityIndicator, Alert,
-  useWindowDimensions,
+  SafeAreaView, ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BookOpen, GraduationCap, Check } from 'lucide-react-native';
@@ -14,14 +14,7 @@ import { UserRole } from '../../lib/types';
 export default function RoleSelectScreen() {
   const [selected, setSelected] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(false);
-  const { width: winW, height: winH } = useWindowDimensions();
-  const w = Math.min(winW, 440);
-  const logoSize = Math.round(w * 0.224);
-  const iconSize = Math.round(logoSize * 0.85);
-  const titleFont = Math.round(w * 0.071);
-  const btnH = Math.round(w * 0.143);
-  const btnFont = Math.round(w * 0.041);
-  const headerTop = Math.round(winH * 0.10);
+  const insets = useSafeAreaInsets();
 
   async function handleContinue() {
     if (!selected) { Alert.alert('Выберите роль'); return; }
@@ -43,16 +36,26 @@ export default function RoleSelectScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.inner, { paddingTop: headerTop }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          {
+            paddingTop: insets.top + 40,
+            paddingBottom: insets.bottom + 24,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <LinearGradient
             colors={[COLORS.primary, '#8B7FFF']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={[styles.logoWrap, { width: logoSize, height: logoSize, borderRadius: Math.round(logoSize * 0.32) }]}
+            style={styles.logoWrap}
           >
-            <GraduationCap size={iconSize} color="#fff" strokeWidth={2.2} />
+            <GraduationCap size={75} color="#fff" strokeWidth={2.2} />
           </LinearGradient>
-          <Text style={[styles.title, { fontSize: titleFont }]}>Кто вы?</Text>
+          <Text style={styles.title}>Кто вы?</Text>
           <Text style={styles.subtitle}>Выберите роль в приложении</Text>
         </View>
 
@@ -66,7 +69,7 @@ export default function RoleSelectScreen() {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.roleIconWrap}
             >
-              <BookOpen size={36} color={selected === 'student' ? '#fff' : COLORS.primary} strokeWidth={2.2} />
+              <BookOpen size={32} color={selected === 'student' ? '#fff' : COLORS.primary} strokeWidth={2.2} />
             </LinearGradient>
             <View style={{ flex: 1 }}>
               <Text style={[styles.roleName, selected === 'student' && styles.roleNameSelected]}>Ученик</Text>
@@ -88,7 +91,7 @@ export default function RoleSelectScreen() {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.roleIconWrap}
             >
-              <GraduationCap size={36} color={selected === 'tutor' ? '#fff' : COLORS.primary} strokeWidth={2.2} />
+              <GraduationCap size={32} color={selected === 'tutor' ? '#fff' : COLORS.primary} strokeWidth={2.2} />
             </LinearGradient>
             <View style={{ flex: 1 }}>
               <Text style={[styles.roleName, selected === 'tutor' && styles.roleNameSelected]}>Репетитор</Text>
@@ -110,13 +113,13 @@ export default function RoleSelectScreen() {
           <LinearGradient
             colors={[COLORS.primary, '#8B7FFF']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={[styles.btnContinue, { height: btnH }]}
+            style={styles.btnContinue}
             pointerEvents="none"
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={[styles.btnText, { fontSize: btnFont }]}>Продолжить</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Продолжить</Text>}
           </LinearGradient>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -131,39 +134,39 @@ const cardShadow = {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 24, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
-  header: { alignItems: 'center', marginBottom: 32 },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, maxWidth: 480, alignSelf: 'center' as any, width: '100%' },
+  header: { alignItems: 'center', marginBottom: 28 },
   logoWrap: {
-    width: 88, height: 88, borderRadius: 28,
+    width: 88, height: 88, borderRadius: 24,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 6,
   },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.text, marginBottom: 6, letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, color: COLORS.textSecondary },
+  title: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 6 },
 
-  roles: { gap: 14, marginBottom: 28 },
+  roles: { gap: 12, marginBottom: 24 },
   roleCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.white, borderRadius: 18, padding: 18,
+    backgroundColor: COLORS.white, borderRadius: 16, padding: 16,
     borderWidth: 1.5, borderColor: 'transparent',
     ...cardShadow,
   },
   roleCardSelected: { borderColor: COLORS.primary, shadowOpacity: 0.18, shadowRadius: 18 },
   roleIconWrap: {
-    width: 64, height: 64, borderRadius: 20,
+    width: 56, height: 56, borderRadius: 16,
     justifyContent: 'center', alignItems: 'center',
   },
-  roleName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2 },
+  roleName: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 2 },
   roleNameSelected: { color: COLORS.primary },
   roleDesc: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  checkCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  checkCircle: { width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
 
   btnContinueWrap: { borderRadius: 16, overflow: 'hidden', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 4 },
-  btnContinue: { height: 56, justifyContent: 'center', alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  btnContinue: { height: 54, justifyContent: 'center', alignItems: 'center' },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
 });
