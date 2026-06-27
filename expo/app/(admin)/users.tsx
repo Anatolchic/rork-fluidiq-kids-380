@@ -15,8 +15,11 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<string | null>(params.role || null);
+  const PAGE_SIZE = 50;
   const { contentMaxWidth } = useResponsive();
   const sel = useSelection<any>(u => u.user_id);
 
@@ -75,9 +78,21 @@ export default function AdminUsers() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.rpc('admin_list_users', { p_search: search || null, p_role: role || null, p_limit: 200, p_offset: 0 });
-    setUsers(data || []);
+    const { data } = await supabase.rpc('admin_list_users', { p_search: search || null, p_role: role || null, p_limit: PAGE_SIZE, p_offset: 0 });
+    const list = data || [];
+    setUsers(list);
+    setHasMore(list.length === PAGE_SIZE);
     setLoading(false);
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const { data } = await supabase.rpc('admin_list_users', { p_search: search || null, p_role: role || null, p_limit: PAGE_SIZE, p_offset: users.length });
+    const more = data || [];
+    setUsers(prev => [...prev, ...more]);
+    setHasMore(more.length === PAGE_SIZE);
+    setLoadingMore(false);
   }
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [search, role]);
@@ -165,6 +180,19 @@ export default function AdminUsers() {
             );
           }}
           ListEmptyComponent={<View style={s.empty}><Text style={s.dim}>Не найдено</Text></View>}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <ActivityIndicator color={COLORS.primary} />
+              </View>
+            ) : !hasMore && users.length > 0 ? (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={s.dim}>— Это все пользователи —</Text>
+              </View>
+            ) : null
+          }
         />
       )}
       <BulkActionBar

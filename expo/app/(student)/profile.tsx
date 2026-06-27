@@ -43,6 +43,23 @@ export default function StudentProfileScreen() {
     ]);
   }
 
+  async function handleExportData() {
+    const { data, error } = await supabase.rpc('export_my_data');
+    if (error) { Alert.alert('Ошибка', error.message); return; }
+    const json = JSON.stringify(data, null, 2);
+    if (typeof window !== 'undefined' && (window as any).URL?.createObjectURL) {
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = (window as any).URL.createObjectURL(blob);
+      const a = (window as any).document.createElement('a');
+      a.href = url;
+      a.download = `my-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      (window as any).URL.revokeObjectURL(url);
+    } else {
+      Alert.alert('Готово', `Размер выгрузки: ${json.length} байт. На native — скоро добавим сохранение в файл.`);
+    }
+  }
+
   async function handleDeleteAccount() {
     Alert.alert(
       'Удалить аккаунт?',
@@ -106,6 +123,10 @@ export default function StudentProfileScreen() {
 
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
               <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleExportData}>
+              <Text style={styles.deleteText}>Скачать мои данные (ФЗ-152)</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount}>
