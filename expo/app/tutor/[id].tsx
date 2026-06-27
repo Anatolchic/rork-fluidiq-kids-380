@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Image, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Star, GraduationCap, Award, MessageCircle } from 'lucide-react-native';
+import { Star, GraduationCap, Award, MessageCircle, Heart } from 'lucide-react-native';
 import { addDays, format, startOfMonth, addMonths } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
 import supabase from '../../lib/supabase';
@@ -33,6 +33,8 @@ export default function PublicTutorProfile() {
   const [openingChat, setOpeningChat] = useState(false);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [studentNames, setStudentNames] = useState<Record<string, string>>({});
+  const [isFav, setIsFav] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
   const { contentMaxWidth } = useResponsive();
   const { session, profile } = useAuthStore();
 
@@ -60,7 +62,6 @@ export default function PublicTutorProfile() {
     setIsPro(!!sub.data);
     setReviews((rev.data || []) as ReviewItem[]);
 
-    // Подгружу имена студентов отзывов одним запросом
     const sids = Array.from(new Set((rev.data || []).map((r: any) => r.student_id)));
     if (sids.length > 0) {
       const { data: ps } = await supabase
@@ -70,7 +71,29 @@ export default function PublicTutorProfile() {
       (ps || []).forEach((p: any) => { map[p.user_id] = p.name; });
       setStudentNames(map);
     }
+
+    // Узнаем — в избранном ли репетитор у текущего ученика
+    if (profile?.role === 'student') {
+      const { data: sp } = await supabase.from('student_profiles')
+        .select('favorites').eq('user_id', session!.user.id).maybeSingle();
+      setIsFav(!!sp?.favorites?.includes(id as string));
+    }
     setLoading(false);
+  }
+
+  async function toggleFavorite() {
+    if (!session || profile?.role !== 'student' || !id) return;
+    setFavLoading(true);
+    const { data: sp } = await supabase.from('student_profiles')
+      .select('favorites').eq('user_id', session.user.id).maybeSingle();
+    const list: string[] = sp?.favorites || [];
+    const next = list.includes(id as string)
+      ? list.filter(x => x !== id)
+      : [...list, id as string];
+    const { error } = await supabase.from('student_profiles')
+      .update({ favorites: next }).eq('user_id', session.user.id);
+    setFavLoading(false);
+    if (!error) setIsFav(next.includes(id as string));
   }
 
   /** Маркеры дат для ученика: hasSlots = есть свободные слоты */
@@ -132,6 +155,20 @@ export default function PublicTutorProfile() {
                 <Star size={12} color="#fff" fill="#fff" />
                 <Text style={s.proBadgeText}>PRO</Text>
               </View>
+            )}
+            {profile?.role === 'student' && (
+              <TouchableOpacity
+                onPress={toggleFavorite}
+                disabled={favLoading}
+                style={s.favBtn}
+                hitSlop={8}
+              >
+                <Heart
+                  size={22}
+                  color={isFav ? COLORS.error : COLORS.textSecondary}
+                  fill={isFav ? COLORS.error : 'transparent'}
+                />
+              </TouchableOpacity>
             )}
           </View>
           <View style={s.ratingRow}>
@@ -247,7 +284,7 @@ const s = StyleSheet.create({
   avatarImg: { width: 100, height: 100, borderRadius: 50, marginBottom: 8 },
   avatarText: { fontSize: 40, fontWeight: '700', color: COLORS.primary },
   name: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' },
   proBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   proBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -283,4 +320,5 @@ const s = StyleSheet.create({
   replyBlock: { backgroundColor: COLORS.primaryLight, borderRadius: 10, padding: 10, marginTop: 6, borderLeftWidth: 3, borderLeftColor: COLORS.primary },
   replyLabel: { fontSize: 11, color: COLORS.primary, fontWeight: '700' },
   replyText: { fontSize: 13, color: COLORS.text, marginTop: 2 },
+  favBtn: { marginLeft: 'auto', padding: 4 },
 });
