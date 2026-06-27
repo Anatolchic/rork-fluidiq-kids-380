@@ -1,6 +1,19 @@
 // WebRTC helpers — TURN credentials (use-auth-secret coturn), peer config.
 // На web используется браузерный RTCPeerConnection. На native (iOS/Android) —
 // react-native-webrtc (добавляется в EAS dev build, не в Expo Go).
+//
+// PRODUCTION TURN-server: 5.35.87.176 (Beget, отдельный VPS).
+// - 3478/udp + 3478/tcp: РАБОТАЕТ (проверено turnutils_uclient 2026-06-07,
+//   0% lost, 51ms RTT, jitter 0.65ms). Allocate/permission/refresh OK.
+// - 5349/tcp (TURNS TLS): НЕ ОТКРЫТ. Это блокер для iOS Safari в production
+//   (Apple требует TLS), и для пользователей за корпоративными NAT/FW
+//   которые блокируют не-TLS трафик. TODO:
+//   1. Получить SSH-доступ к 5.35.87.176 (сейчас в vault только TURN_SECRET)
+//   2. На coturn включить cert-file=/etc/letsencrypt/live/turn.repetitory-app.ru/fullchain.pem
+//      pkey-file=/etc/letsencrypt/live/turn.repetitory-app.ru/privkey.pem
+//   3. tls-listening-port=5349, открыть в UFW
+//   4. Cloudflare DNS turn.repetitory-app.ru → 5.35.87.176 A-запись (proxy=false)
+//   5. certbot certonly --standalone -d turn.repetitory-app.ru
 
 const TURN_HOST = process.env.EXPO_PUBLIC_TURN_HOST || '5.35.87.176';
 const TURN_SECRET = process.env.EXPO_PUBLIC_TURN_SECRET || '';
@@ -46,6 +59,44 @@ export const PEER_CONFIG_DEFAULTS: RTCConfiguration = {
   rtcpMuxPolicy: 'require',
   iceCandidatePoolSize: 4,
 };
+
+/**
+ * Диагностика TURN: пытается собрать relay-candidate за 5 секунд.
+ * Возвращает {ok, ipFamily?, error?}. Используется как pre-flight перед call.
+ */
+export async function diagnoseTurn(userId: string): Promise<{ ok: boolean; relayFound?: boolean; relayAddr?: string; error?: string }> {
+  try {
+    const iceServers = await getTurnIceServers(userId);
+    const pc = new (global as any).RTCPeerConnection({ ...PEER_CONFIG_DEFAULTS, iceServers });
+    pc.createDataChannel('probe');
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    return await new Promise((resolve) => {
+      let relayFound = false;
+      let relayAddr = '';
+      const timer = setTimeout(() => {
+        try { pc.close(); } catch {}
+        resolve({ ok: relayFound, relayFound, relayAddr });
+      }, 5000);
+      pc.onicecandidate = (e: any) => {
+        const c = e.candidate;
+        if (!c) return;
+        if (c.candidate && c.candidate.includes(' typ relay ')) {
+          relayFound = true;
+          const m = c.candidate.match(/raddr (\S+)/);
+          if (m) relayAddr = m[1];
+          clearTimeout(timer);
+          try { pc.close(); } catch {}
+          resolve({ ok: true, relayFound: true, relayAddr });
+        }
+      };
+    });
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
 
 // Адаптивный битрейт — после установки соединения вызываем applyBitrate на отправляющих видео-tracks
 export async function applyBitrateLimit(pc: RTCPeerConnection, maxKbps: number) {
