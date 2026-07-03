@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator, RefreshControl, TextInput, Modal, Alert, Linking, Platform, Pressable, Animated } from 'react-native';
 import { format } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
-import { TrendingUp, TrendingDown, Plus, Star, Check, Crown, Wallet, RotateCcw } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Plus, Star, Check, Crown, Wallet, RotateCcw, ArrowUpRight, X, Clock, CheckCircle2, XCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import supabase from '../../lib/supabase';
 import { initTopupPayment } from '../../lib/tbank';
@@ -31,16 +31,25 @@ export default function TutorWallet() {
   const [proPrice, setProPrice] = useState<number>(DEFAULT_PRO_PRICE_KOPECKS);
   const [buyingPro, setBuyingPro] = useState(false);
 
+  // Вывод средств
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [payoutOpen, setPayoutOpen] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutMethod, setPayoutMethod] = useState<'card' | 'sbp' | 'bank'>('card');
+  const [payoutDetails, setPayoutDetails] = useState('');
+  const [requestingPayout, setRequestingPayout] = useState(false);
+
   useEffect(() => { if (session) load(); }, [session]);
 
   async function load() {
     setLoading(true);
-    const [p, h, s, pro, sub] = await Promise.all([
+    const [p, h, s, pro, sub, po] = await Promise.all([
       supabase.from('tutor_profiles').select('*').eq('user_id', session!.user.id).single(),
       supabase.from('payments').select('*').eq('tutor_id', session!.user.id).order('created_at', { ascending: false }).limit(30),
       supabase.from('app_settings').select('test_mode, pro_subscription_price_kopecks').limit(1).maybeSingle(),
       supabase.rpc('is_pro_tutor', { p_user_id: session!.user.id }),
       supabase.from('tutor_subscriptions').select('expires_at').eq('tutor_id', session!.user.id).order('expires_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('payouts').select('*').eq('tutor_id', session!.user.id).order('created_at', { ascending: false }).limit(20),
     ]);
     if (p.data) setProfile(p.data);
     setHistory(h.data || []);
@@ -49,7 +58,44 @@ export default function TutorWallet() {
     setProPrice(priceFromSettings && priceFromSettings > 0 ? priceFromSettings : DEFAULT_PRO_PRICE_KOPECKS);
     setIsPro(!!pro.data);
     setProUntil((sub.data as any)?.expires_at ?? null);
+    setPayouts(po.data || []);
     setLoading(false);
+  }
+
+  async function requestPayout() {
+    const rub = Number(payoutAmount);
+    if (!rub || rub < 500) { Alert.alert('Минимум для вывода — 500 ₽'); return; }
+    if (!payoutDetails.trim()) { Alert.alert('Заполните реквизиты'); return; }
+    setRequestingPayout(true);
+    const { data, error } = await supabase.rpc('request_payout', {
+      p_amount_kopecks: rub * 100,
+      p_method: payoutMethod,
+      p_details: payoutDetails.trim(),
+    });
+    setRequestingPayout(false);
+    if (error) { Alert.alert('Ошибка', ru(error)); return; }
+    if ((data as any)?.ok === false) {
+      const err = (data as any).error;
+      Alert.alert('Не удалось', err === 'insufficient_balance' ? 'Недостаточно средств на балансе' : err);
+      return;
+    }
+    setPayoutOpen(false);
+    setPayoutAmount('');
+    setPayoutDetails('');
+    Alert.alert('Заявка принята', `Заявка на ${rub.toLocaleString('ru')} ₽ в обработке. Обычно вывод в течение 24 часов.`);
+    load();
+  }
+
+  async function cancelPayout(payoutId: string) {
+    Alert.alert('Отменить заявку?', 'Средства вернутся на баланс', [
+      { text: 'Не отменять', style: 'cancel' },
+      { text: 'Отменить', style: 'destructive', onPress: async () => {
+        const { data, error } = await supabase.rpc('cancel_payout', { p_payout_id: payoutId });
+        if (error) { Alert.alert('Ошибка', error.message); return; }
+        if ((data as any)?.ok === false) { Alert.alert('Не удалось', (data as any).error); return; }
+        load();
+      }},
+    ]);
   }
 
   async function handleBuyPro() {
@@ -129,16 +175,36 @@ export default function TutorWallet() {
           <Text style={styles.balanceHint}>
             Комиссия за урок: {(COMMISSION_KOPECKS / 100).toLocaleString('ru')} ₽ · Мин. баланс для старта: {(MIN_BALANCE_KOPECKS / 100).toLocaleString('ru')} ₽
           </Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.topupBtn,
-              { transform: [{ scale: pressed ? 0.97 : 1 }] },
-            ]}
-            onPress={() => setTopupOpen(true)}
-          >
-            <Plus size={18} color="#fff" />
-            <Text style={styles.topupText}>Пополнить</Text>
-          </Pressable>
+          <View style={styles.balanceActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.topupBtn,
+                { transform: [{ scale: pressed ? 0.97 : 1 }] },
+              ]}
+              onPress={() => setTopupOpen(true)}
+            >
+              <Plus size={18} color="#fff" />
+              <Text style={styles.topupText}>Пополнить</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.withdrawBtn,
+                { transform: [{ scale: pressed ? 0.97 : 1 }] },
+                balance < 50000 && { opacity: 0.5 },
+              ]}
+              onPress={() => {
+                if (balance < 50000) {
+                  Alert.alert('Мало средств', 'Минимум для вывода — 500 ₽');
+                  return;
+                }
+                setPayoutAmount(String(Math.floor(balance / 100)));
+                setPayoutOpen(true);
+              }}
+            >
+              <ArrowUpRight size={18} color="#fff" />
+              <Text style={styles.topupText}>Вывести</Text>
+            </Pressable>
+          </View>
           {/* Декоративная иконка фоном */}
           <View style={styles.balanceBgIcon} pointerEvents="none">
             <Wallet size={140} color="#ffffff10" strokeWidth={1.5} />
@@ -188,6 +254,36 @@ export default function TutorWallet() {
             <Crown size={130} color="#ffffff22" strokeWidth={1.5} />
           </View>
         </LinearGradient>
+
+        {payouts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Заявки на вывод</Text>
+            {payouts.slice(0, 5).map(po => {
+              const rub = (po.amount_kopecks / 100).toLocaleString('ru');
+              const methodLabel = po.method === 'card' ? 'Карта' : po.method === 'sbp' ? 'СБП' : 'Реквизиты';
+              const StatusIcon = po.status === 'pending' ? Clock : po.status === 'paid' ? CheckCircle2 : XCircle;
+              const statusColor = po.status === 'pending' ? COLORS.warning : po.status === 'paid' ? COLORS.success : COLORS.textSecondary;
+              const statusText = po.status === 'pending' ? 'В обработке' : po.status === 'paid' ? 'Выплачено' : po.status === 'cancelled' ? 'Отменена' : po.status === 'rejected' ? 'Отклонена' : 'Одобрена';
+              return (
+                <View key={po.id} style={styles.payoutRow}>
+                  <View style={[styles.payoutIcon, { backgroundColor: statusColor + '20' }]}>
+                    <StatusIcon size={18} color={statusColor} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.payoutAmount}>{rub} ₽ · {methodLabel}</Text>
+                    <Text style={styles.payoutMeta}>{statusText} · {format(new Date(po.created_at), 'd MMM, HH:mm', { locale: ruLocale })}</Text>
+                    {po.details && <Text style={styles.payoutDetails} numberOfLines={1}>{po.details}</Text>}
+                  </View>
+                  {po.status === 'pending' && (
+                    <Pressable onPress={() => cancelPayout(po.id)} hitSlop={8}>
+                      <X size={18} color={COLORS.textSecondary} />
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>История</Text>
@@ -248,6 +344,85 @@ export default function TutorWallet() {
                 <Text style={styles.devLinkText}>тестовая оплата (dev)</Text>
               </Pressable>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Модалка вывода средств */}
+      <Modal visible={payoutOpen} animationType="slide" transparent onRequestClose={() => setPayoutOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View>
+                <Text style={styles.modalTitle}>Вывод средств</Text>
+                <Text style={styles.modalSub}>Доступно: {balanceRub} ₽</Text>
+              </View>
+              <Pressable onPress={() => setPayoutOpen(false)} hitSlop={10}>
+                <X size={22} color={COLORS.textSecondary} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.payoutFieldLabel}>Сумма</Text>
+            <View style={styles.amountRow}>
+              <TextInput
+                style={styles.amountInput}
+                value={payoutAmount}
+                onChangeText={setPayoutAmount}
+                keyboardType="number-pad"
+                placeholder="500"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <Text style={styles.amountCurrency}>₽</Text>
+            </View>
+
+            <Text style={styles.payoutFieldLabel}>Способ</Text>
+            <View style={styles.methodRow}>
+              {([
+                { k: 'card', l: 'Карта' },
+                { k: 'sbp', l: 'СБП' },
+                { k: 'bank', l: 'Реквизиты' },
+              ] as const).map(m => (
+                <Pressable
+                  key={m.k}
+                  onPress={() => setPayoutMethod(m.k)}
+                  style={[styles.methodChip, payoutMethod === m.k && styles.methodChipActive]}
+                >
+                  <Text style={[styles.methodText, payoutMethod === m.k && styles.methodTextActive]}>{m.l}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.payoutFieldLabel}>
+              {payoutMethod === 'card' ? 'Номер карты' : payoutMethod === 'sbp' ? 'Телефон (СБП)' : 'Реквизиты'}
+            </Text>
+            <TextInput
+              style={styles.detailsInput}
+              value={payoutDetails}
+              onChangeText={setPayoutDetails}
+              placeholder={payoutMethod === 'card' ? '2200 XXXX XXXX XXXX' : payoutMethod === 'sbp' ? '+7 900 000 00 00' : 'ИНН, БИК, счёт...'}
+              placeholderTextColor={COLORS.textSecondary}
+              multiline={payoutMethod === 'bank'}
+            />
+
+            <Text style={styles.payoutHint}>
+              Обычно вывод в течение 24 часов. Пока заявка в обработке, можно отменить — средства вернутся на баланс.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancel, { transform: [{ scale: pressed ? 0.97 : 1 }] }]}
+                onPress={() => setPayoutOpen(false)}
+              >
+                <Text style={styles.modalCancelText}>Отмена</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalPay, requestingPayout && styles.modalPayDisabled, { transform: [{ scale: pressed ? 0.97 : 1 }] }]}
+                disabled={requestingPayout}
+                onPress={requestPayout}
+              >
+                {requestingPayout ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalPayText}>Отправить заявку</Text>}
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -328,14 +503,47 @@ const styles = StyleSheet.create({
   balanceLabel: { fontSize: 14, color: '#ffffffdd', fontWeight: '700', letterSpacing: 0.3 },
   balanceValue: { fontSize: 42, fontWeight: '800', color: '#fff', letterSpacing: -1, marginTop: 6 },
   balanceHint: { fontSize: 12, color: '#ffffffcc', lineHeight: 17, marginTop: 6 },
+  balanceActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   topupBtn: {
+    flex: 1,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    marginTop: 16, height: 50,
+    height: 50,
     backgroundColor: '#ffffff25', borderRadius: 14,
+    borderWidth: 1, borderColor: '#ffffff40',
+  },
+  withdrawBtn: {
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    height: 50,
+    backgroundColor: '#ffffff15', borderRadius: 14,
     borderWidth: 1, borderColor: '#ffffff40',
   },
   topupText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
   balanceBgIcon: { position: 'absolute', right: -10, bottom: -20 },
+
+  // Payouts
+  payoutRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border + '60',
+  },
+  payoutIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  payoutAmount: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  payoutMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  payoutDetails: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+
+  // Payout modal
+  payoutFieldLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700', marginTop: 14, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
+  methodRow: { flexDirection: 'row', gap: 8 },
+  methodChip: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  methodChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  methodText: { fontSize: 13, color: COLORS.text, fontWeight: '700' },
+  methodTextActive: { color: '#fff' },
+  detailsInput: {
+    backgroundColor: COLORS.background, borderRadius: 12, padding: 12,
+    fontSize: 14, color: COLORS.text, minHeight: 48,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  payoutHint: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17, marginTop: 12 },
 
   // PRO card (golden)
   proCard: {
