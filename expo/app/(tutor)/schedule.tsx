@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator,
   Pressable, Alert, Modal, RefreshControl,
 } from 'react-native';
-import { format, startOfDay, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfDay, startOfMonth, endOfMonth, addDays, addWeeks } from 'date-fns';
 import { ru as ruLocale } from 'date-fns/locale';
-import { Plus, X, Clock, Check, Trash2, Info } from 'lucide-react-native';
+import { Clock, Check, Info, X, Copy, CalendarRange, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
@@ -22,14 +22,19 @@ type Slot = {
   booking_id: string | null;
 };
 
-const HOURS = Array.from({ length: 16 }, (_, i) => i + 7);
-const QUARTERS = [0, 15, 30, 45];
+// Time-grid: часы 8..21 (14 часов). Каждый час = потенциальный 60-мин слот.
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
 
-const DURATIONS = [
-  { value: 60, label: '60 мин', sub: '50 мин урок + 10 мин восстановление' },
-  { value: 90, label: '90 мин', sub: '80 мин урок + 10 мин восстановление' },
-  { value: 120, label: '120 мин', sub: '110 мин урок + 10 мин восстановление' },
-] as const;
+// Дни недели для шаблона (ISO: 1=Пн...7=Вс)
+const WEEK_DAYS = [
+  { key: 1, label: 'Пн' },
+  { key: 2, label: 'Вт' },
+  { key: 3, label: 'Ср' },
+  { key: 4, label: 'Чт' },
+  { key: 5, label: 'Пт' },
+  { key: 6, label: 'Сб' },
+  { key: 7, label: 'Вс' },
+];
 
 export default function TutorSchedule() {
   const { session } = useAuthStore();
@@ -39,12 +44,14 @@ export default function TutorSchedule() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [addDuration, setAddDuration] = useState<60 | 90 | 120>(60);
-  const [addHour, setAddHour] = useState(9);
-  const [addMinute, setAddMinute] = useState(0);
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+
   const [helpOpen, setHelpOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [tplHourFrom, setTplHourFrom] = useState(9);
+  const [tplHourTo, setTplHourTo] = useState(18);
+  const [tplWeeks, setTplWeeks] = useState<2 | 4 | 8>(4);
+  const [tplDays, setTplDays] = useState<number[]>([1, 2, 3, 4, 5]);
 
   useEffect(() => { if (session) load(); }, [session, month]);
 
@@ -63,7 +70,7 @@ export default function TutorSchedule() {
     setLoading(false);
   }
 
-  async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
+  const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [month]);
 
   const slotsByDay = useMemo(() => {
     const map = new Map<string, Slot[]>();
@@ -88,64 +95,108 @@ export default function TutorSchedule() {
 
   const daySlots = useMemo(() => {
     const key = format(selectedDay, 'yyyy-MM-dd');
-    return (slotsByDay.get(key) || []).sort((a, b) => +new Date(a.slot_start) - +new Date(b.slot_start));
+    return slotsByDay.get(key) || [];
   }, [slotsByDay, selectedDay]);
 
-  async function addSlot() {
-    if (!session) return;
-    setSaving(true);
-    const slotDate = new Date(selectedDay);
-    slotDate.setHours(addHour, addMinute, 0, 0);
-    const { data, error } = await supabase.rpc('create_slots_bulk', {
-      p_slot_starts: [slotDate.toISOString()],
-      p_duration: addDuration,
+  // Map hour → slot (для быстрого toggle)
+  const hourToSlot = useMemo(() => {
+    const m = new Map<number, Slot>();
+    daySlots.forEach(s => {
+      const h = new Date(s.slot_start).getHours();
+      m.set(h, s);
     });
-    setSaving(false);
+    return m;
+  }, [daySlots]);
+
+  async function toggleHour(hour: number) {
+    if (!session || busy) return;
+    const existing = hourToSlot.get(hour);
+    if (existing) {
+      if (existing.booking_id) {
+        Alert.alert('Слот забронирован', 'Сначала отмените бронирование со стороны ученика');
+        return;
+      }
+      setBusy(true);
+      const { error } = await supabase.rpc('delete_slot', { p_slot_id: existing.id });
+      setBusy(false);
+      if (error) Alert.alert('Ошибка', error.message);
+      else load();
+    } else {
+      const isPast = selectedDay < startOfDay(new Date()) ||
+        (format(selectedDay, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && hour < new Date().getHours() + 1);
+      if (isPast) {
+        Alert.alert('Прошедшее время', 'Нельзя открыть слот в прошлом');
+        return;
+      }
+      const slotDate = new Date(selectedDay);
+      slotDate.setHours(hour, 0, 0, 0);
+      setBusy(true);
+      const { error } = await supabase.rpc('create_slots_bulk', {
+        p_slot_starts: [slotDate.toISOString()],
+        p_duration: 60,
+      });
+      setBusy(false);
+      if (error) Alert.alert('Ошибка', error.message);
+      else load();
+    }
+  }
+
+  async function applyTemplate() {
+    if (!session) return;
+    if (tplDays.length === 0) { Alert.alert('Выберите хотя бы один день недели'); return; }
+    if (tplHourFrom >= tplHourTo) { Alert.alert('Проверьте диапазон часов'); return; }
+
+    const starts: string[] = [];
+    const today = startOfDay(new Date());
+    for (let w = 0; w < tplWeeks; w++) {
+      for (let d = 0; d < 7; d++) {
+        const day = addDays(today, w * 7 + d);
+        const iso = day.getDay() === 0 ? 7 : day.getDay();
+        if (!tplDays.includes(iso)) continue;
+        for (let h = tplHourFrom; h < tplHourTo; h++) {
+          const slotDate = new Date(day); slotDate.setHours(h, 0, 0, 0);
+          if (slotDate < new Date()) continue;
+          starts.push(slotDate.toISOString());
+        }
+      }
+    }
+    if (starts.length === 0) { Alert.alert('Нечего создавать', 'В выбранном диапазоне нет валидных дат'); return; }
+
+    setBusy(true);
+    const { data, error } = await supabase.rpc('create_slots_bulk', { p_slot_starts: starts, p_duration: 60 });
+    setBusy(false);
     if (error) { Alert.alert('Ошибка', error.message); return; }
-    if (data === 0) { Alert.alert('Слот уже есть', 'На это время слот уже создан'); return; }
-    setAddOpen(false);
+    setTemplateOpen(false);
+    Alert.alert('Готово', `Создано слотов: ${data}`);
     load();
   }
 
-  async function quickFill() {
-    if (!session) return;
-    Alert.alert(
-      'Заполнить день?',
-      `Создадим слоты по 60 мин с 9:00 до 18:00 на ${format(selectedDay, 'd MMMM', { locale: ruLocale })}`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Да', onPress: async () => {
-          const starts: string[] = [];
-          for (let h = 9; h < 18; h++) {
-            const d = new Date(selectedDay); d.setHours(h, 0, 0, 0);
-            starts.push(d.toISOString());
-          }
-          setSaving(true);
-          const { data, error } = await supabase.rpc('create_slots_bulk', {
-            p_slot_starts: starts, p_duration: 60,
-          });
-          setSaving(false);
-          if (error) Alert.alert('Ошибка', error.message);
-          else { Alert.alert('Готово', `Создано слотов: ${data}`); load(); }
-        }},
-      ]
-    );
+  async function copyDayToNextWeek() {
+    if (!session || daySlots.length === 0) return;
+    const target = addWeeks(selectedDay, 1);
+    const starts = daySlots
+      .filter(s => !s.booking_id)
+      .map(s => {
+        const orig = new Date(s.slot_start);
+        const d = new Date(target);
+        d.setHours(orig.getHours(), orig.getMinutes(), 0, 0);
+        return d.toISOString();
+      });
+    if (starts.length === 0) { Alert.alert('Нет свободных слотов для копирования'); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc('create_slots_bulk', { p_slot_starts: starts, p_duration: 60 });
+    setBusy(false);
+    if (error) Alert.alert('Ошибка', error.message);
+    else Alert.alert('Скопировано', `${data} слотов → ${format(target, 'd MMMM', { locale: ruLocale })}`);
+    load();
   }
 
-  async function removeSlot(slot: Slot) {
-    if (slot.booking_id) {
-      Alert.alert('Слот забронирован', 'Сначала отмените бронь со стороны ученика');
-      return;
-    }
-    Alert.alert('Удалить слот?', format(new Date(slot.slot_start), 'd MMM HH:mm', { locale: ruLocale }), [
-      { text: 'Отмена', style: 'cancel' },
-      { text: 'Удалить', style: 'destructive', onPress: async () => {
-        const { error } = await supabase.rpc('delete_slot', { p_slot_id: slot.id });
-        if (error) Alert.alert('Ошибка', error.message);
-        else load();
-      }},
-    ]);
+  function toggleTplDay(d: number) {
+    setTplDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   }
+
+  const totalFree = slots.filter(s => !s.booking_id).length;
+  const totalBooked = slots.filter(s => s.booking_id).length;
 
   if (loading) return <SafeAreaView style={s.container}><ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} /></SafeAreaView>;
 
@@ -157,14 +208,33 @@ export default function TutorSchedule() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
         <View style={s.headerRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={s.title}>Расписание</Text>
-            <Text style={s.subtitle}>Отмечайте время, когда вы готовы вести уроки</Text>
+            <Text style={s.subtitle}>Свободных {totalFree} · Забронировано {totalBooked}</Text>
           </View>
           <Pressable onPress={() => setHelpOpen(true)} hitSlop={10} style={s.infoBtn}>
             <Info size={20} color={COLORS.primary} />
           </Pressable>
         </View>
+
+        {/* Шаблон недели — CTA */}
+        <Pressable
+          onPress={() => setTemplateOpen(true)}
+          style={({ pressed }) => [s.templateBtn, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+        >
+          <LinearGradient
+            colors={[COLORS.primary, '#8B7FFF']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={s.templateBtnInner}
+            pointerEvents="none"
+          >
+            <Zap size={18} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.templateBtnTitle}>Шаблон недели</Text>
+              <Text style={s.templateBtnSub}>Быстро открыть слоты на несколько недель вперёд</Text>
+            </View>
+          </LinearGradient>
+        </Pressable>
 
         <View style={s.calCard}>
           <CalendarMonth
@@ -187,141 +257,155 @@ export default function TutorSchedule() {
           </View>
         </View>
 
+        {/* Time-grid: клик по часу = вкл/выкл слот */}
         <View style={s.daySection}>
           <View style={s.dayTitleRow}>
             <Text style={s.dayTitle}>{format(selectedDay, 'd MMMM, EEEE', { locale: ruLocale })}</Text>
-            <Text style={s.dayCount}>Слотов: {daySlots.length}</Text>
+            <Text style={s.dayCount}>{daySlots.length}</Text>
           </View>
 
-          {daySlots.length === 0 ? (
-            <View style={s.empty}>
-              <Clock size={32} color={COLORS.textSecondary} />
-              <Text style={s.emptyText}>На этот день слотов нет</Text>
+          <Text style={s.gridHint}>Тап по часу — включить или выключить слот 60 мин</Text>
+
+          <View style={s.hourGrid}>
+            {HOURS.map(h => {
+              const slot = hourToSlot.get(h);
+              const isActive = !!slot;
+              const isBooked = !!slot?.booking_id;
+              const isPast = selectedDay < startOfDay(new Date()) ||
+                (format(selectedDay, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && h < new Date().getHours() + 1);
+              const cellStyle = [
+                s.hourCell,
+                isPast && !isActive && s.hourCellPast,
+                isActive && !isBooked && s.hourCellActive,
+                isBooked && s.hourCellBooked,
+              ];
+              return (
+                <Pressable
+                  key={h}
+                  onPress={() => toggleHour(h)}
+                  disabled={isBooked || (isPast && !isActive)}
+                  style={({ pressed }) => [
+                    ...cellStyle,
+                    pressed && !isBooked && { transform: [{ scale: 0.94 }] },
+                  ]}
+                >
+                  <Text style={[
+                    s.hourText,
+                    isPast && !isActive && s.hourTextPast,
+                    (isActive || isBooked) && { color: '#fff' },
+                  ]}>{String(h).padStart(2, '0')}:00</Text>
+                  {isBooked && <Check size={12} color="#fff" strokeWidth={3} />}
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {daySlots.length > 0 && (
+            <Pressable
+              onPress={copyDayToNextWeek}
+              style={({ pressed }) => [s.copyBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Copy size={15} color={COLORS.primary} />
+              <Text style={s.copyBtnText}>Скопировать день на след. неделю</Text>
+            </Pressable>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Модал шаблона недели */}
+      <Modal visible={templateOpen} animationType="slide" transparent onRequestClose={() => setTemplateOpen(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setTemplateOpen(false)}>
+          <Pressable style={s.modalSheet} onPress={e => e.stopPropagation()}>
+            <View style={s.sheetHandle} />
+            <View style={s.modalHeader}>
+              <View>
+                <Text style={s.modalTitle}>Шаблон недели</Text>
+                <Text style={s.modalSub}>Открыть слоты 60 мин по расписанию</Text>
+              </View>
+              <Pressable onPress={() => setTemplateOpen(false)} hitSlop={10}>
+                <X size={22} color={COLORS.textSecondary} />
+              </Pressable>
             </View>
-          ) : (
-            <View style={s.slotsList}>
-              {daySlots.map(slot => {
-                const start = new Date(slot.slot_start);
-                const lesson = slot.duration_minutes === 30 ? 25 : slot.duration_minutes - 10;
-                const booked = !!slot.booking_id;
+
+            <Text style={s.fieldLabel}>Дни недели</Text>
+            <View style={s.chipRow}>
+              {WEEK_DAYS.map(d => {
+                const active = tplDays.includes(d.key);
                 return (
-                  <Pressable key={slot.id} onPress={() => removeSlot(slot)}
-                    style={({ pressed }) => [s.slot, booked && s.slotBooked, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
-                    <View style={s.slotLeft}>
-                      <Text style={[s.slotTime, booked && { color: '#fff' }]}>{format(start, 'HH:mm')}</Text>
-                      <Text style={[s.slotDur, booked && { color: '#ffffffd0' }]}>
-                        слот {slot.duration_minutes} мин · урок {lesson} мин
-                      </Text>
-                    </View>
-                    {booked ? (
-                      <View style={s.bookedBadge}>
-                        <Check size={14} color="#fff" />
-                        <Text style={s.bookedText}>забронирован</Text>
-                      </View>
-                    ) : (
-                      <Trash2 size={18} color={COLORS.textSecondary} />
-                    )}
+                  <Pressable key={d.key} onPress={() => toggleTplDay(d.key)}
+                    style={[s.dayChip, active && s.dayChipActive]}>
+                    <Text style={[s.dayChipText, active && s.dayChipTextActive]}>{d.label}</Text>
                   </Pressable>
                 );
               })}
             </View>
-          )}
 
-          <View style={s.btnRow}>
-            <Pressable
-              testID="add-slot-btn"
-              onPress={() => setAddOpen(true)}
-              style={({ pressed }) => [s.btnPrimary, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
-            >
-              <LinearGradient colors={[COLORS.primary, '#8B7FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.btnGradient} pointerEvents="none">
-                <Plus size={18} color="#fff" />
-                <Text style={s.btnText}>Добавить слот</Text>
-              </LinearGradient>
-            </Pressable>
-            {daySlots.length === 0 && (
-              <Pressable onPress={quickFill} style={({ pressed }) => [s.btnSecondary, pressed && { opacity: 0.7 }]}>
-                <Text style={s.btnSecondaryText}>9:00 — 18:00</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-
-      <Modal visible={addOpen} animationType="slide" transparent onRequestClose={() => setAddOpen(false)}>
-        <Pressable style={s.modalBackdrop} onPress={() => setAddOpen(false)}>
-          <Pressable style={s.modalSheet} onPress={e => e.stopPropagation()}>
-            <View style={s.sheetHandle} />
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Новый слот</Text>
-              <Pressable onPress={() => setAddOpen(false)} hitSlop={10}>
-                <X size={22} color={COLORS.textSecondary} />
-              </Pressable>
+            <Text style={s.fieldLabel}>Часы</Text>
+            <View style={s.rangeRow}>
+              <View style={s.rangeGroup}>
+                <Text style={s.rangeLabel}>с</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {HOURS.map(h => (
+                    <Pressable key={h} onPress={() => setTplHourFrom(h)}
+                      style={[s.hourChip, tplHourFrom === h && s.hourChipActive]}>
+                      <Text style={[s.hourChipText, tplHourFrom === h && s.hourChipTextActive]}>{String(h).padStart(2, '0')}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+              <View style={s.rangeGroup}>
+                <Text style={s.rangeLabel}>до</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {HOURS.concat([22]).map(h => (
+                    <Pressable key={h} onPress={() => setTplHourTo(h)}
+                      style={[s.hourChip, tplHourTo === h && s.hourChipActive]}>
+                      <Text style={[s.hourChipText, tplHourTo === h && s.hourChipTextActive]}>{String(h).padStart(2, '0')}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
             </View>
-            <Text style={s.modalDate}>{format(selectedDay, 'd MMMM, EEEE', { locale: ruLocale })}</Text>
 
-            <Text style={s.fieldLabel}>Час начала</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 6 }}>
-              {HOURS.map(h => (
-                <Pressable key={h} onPress={() => setAddHour(h)}
-                  style={[s.timeChip, addHour === h && s.timeChipActive]}>
-                  <Text style={[s.timeChipText, addHour === h && s.timeChipTextActive]}>{String(h).padStart(2, '0')}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            <Text style={s.fieldLabel}>Минуты</Text>
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
-              {QUARTERS.map(q => (
-                <Pressable key={q} onPress={() => setAddMinute(q)}
-                  style={[s.timeChip, addMinute === q && s.timeChipActive]}>
-                  <Text style={[s.timeChipText, addMinute === q && s.timeChipTextActive]}>{String(q).padStart(2, '0')}</Text>
+            <Text style={s.fieldLabel}>На сколько недель вперёд</Text>
+            <View style={s.chipRow}>
+              {[2, 4, 8].map(w => (
+                <Pressable key={w} onPress={() => setTplWeeks(w as any)}
+                  style={[s.weekChip, tplWeeks === w && s.weekChipActive]}>
+                  <Text style={[s.weekChipText, tplWeeks === w && s.weekChipTextActive]}>{w} нед.</Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={s.fieldLabel}>Длительность слота</Text>
-            <View style={{ gap: 8 }}>
-              {DURATIONS.map(d => (
-                <Pressable key={d.value} onPress={() => setAddDuration(d.value)}
-                  style={[s.durOption, addDuration === d.value && s.durOptionActive]}>
-                  <View style={[s.radio, addDuration === d.value && s.radioActive]}>
-                    {addDuration === d.value && <View style={s.radioInner} />}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.durLabel}>{d.label}</Text>
-                    <Text style={s.durSub}>{d.sub}</Text>
-                  </View>
-                </Pressable>
-              ))}
+            <View style={s.previewBox}>
+              <CalendarRange size={16} color={COLORS.primary} />
+              <Text style={s.previewText}>
+                Будет открыто ≈ {tplDays.length * (tplHourTo - tplHourFrom) * tplWeeks} слотов
+              </Text>
             </View>
 
-            <Pressable onPress={addSlot} disabled={saving}
-              style={({ pressed }) => [s.btnPrimary, { marginTop: 16, transform: [{ scale: pressed ? 0.98 : 1 }] }, saving && { opacity: 0.6 }]}>
-              <LinearGradient colors={[COLORS.primary, '#8B7FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.btnGradient} pointerEvents="none">
-                {saving ? <ActivityIndicator color="#fff" /> : (
-                  <>
-                    <Plus size={18} color="#fff" />
-                    <Text style={s.btnText}>Добавить слот</Text>
-                  </>
-                )}
+            <Pressable onPress={applyTemplate} disabled={busy}
+              style={({ pressed }) => [s.applyBtn, busy && { opacity: 0.6 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
+              <LinearGradient colors={[COLORS.primary, '#8B7FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={s.applyBtnInner} pointerEvents="none">
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.applyBtnText}>Применить шаблон</Text>}
               </LinearGradient>
             </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
 
+      {/* Хелп */}
       <Modal visible={helpOpen} animationType="fade" transparent onRequestClose={() => setHelpOpen(false)}>
         <Pressable style={s.modalBackdrop} onPress={() => setHelpOpen(false)}>
           <Pressable style={s.helpCard} onPress={e => e.stopPropagation()}>
             <Text style={s.modalTitle}>Как это работает</Text>
             <Text style={s.helpText}>
-              • Слот — окно времени, в которое вы готовы провести урок.{'\n\n'}
-              • 60 мин слот = 50 мин урок + 10 мин на восстановление.{'\n'}
-              • 90 мин = 80 мин урок + 10 мин восст.{'\n'}
-              • 120 мин = 110 мин урок + 10 мин восст.{'\n'}
-              • Ознакомительный (30 мин = 25 урок + 5 восст) появляется автоматически у нового ученика.{'\n\n'}
-              • Свободный слот удаляется тапом. Забронированный — только через отмену брони учеником.{'\n'}
-              • Ученики видят только ваши свободные слоты.
+              • Тап по часу в сетке — открыть или удалить слот 60 мин.{'\n\n'}
+              • Слот = 60 мин: 50 мин урок + 10 мин восстановление.{'\n'}
+              • Ознакомительный (30 мин = 25+5) появляется автоматически у нового ученика.{'\n\n'}
+              • «Шаблон недели» — быстро открывает слоты в выбранные дни на 2/4/8 недель вперёд.{'\n'}
+              • «Скопировать день» — переносит выбранный день на след. неделю в такое же время.{'\n\n'}
+              • Забронированный слот удалить нельзя — сначала отмените бронь ученика.
             </Text>
             <Pressable onPress={() => setHelpOpen(false)} style={s.helpClose}>
               <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Понятно</Text>
@@ -336,62 +420,79 @@ export default function TutorSchedule() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 16, paddingBottom: 60 },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 },
+
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
   infoBtn: { padding: 6, borderRadius: 10, backgroundColor: COLORS.primary + '12' },
 
-  calCard: { backgroundColor: COLORS.white, borderRadius: 18, padding: 12, marginBottom: 12, shadowColor: '#0006', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 },
+  templateBtn: { borderRadius: 16, marginBottom: 12, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 4 },
+  templateBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16 },
+  templateBtnTitle: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  templateBtnSub: { color: '#ffffffcc', fontSize: 12, marginTop: 2 },
 
-  legend: { flexDirection: 'row', gap: 16, marginBottom: 16, paddingHorizontal: 4 },
+  calCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 10, marginBottom: 12, shadowColor: '#0006', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 },
+
+  legend: { flexDirection: 'row', gap: 16, marginBottom: 12, paddingHorizontal: 4 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { fontSize: 12, color: COLORS.textSecondary },
 
-  daySection: { backgroundColor: COLORS.white, borderRadius: 18, padding: 16, shadowColor: '#0006', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 },
-  dayTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  daySection: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, shadowColor: '#0006', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 },
+  dayTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   dayTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
-  dayCount: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  dayCount: { fontSize: 13, color: COLORS.primary, fontWeight: '800', backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, minWidth: 30, textAlign: 'center' },
+  gridHint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 12 },
 
-  empty: { alignItems: 'center', paddingVertical: 30, gap: 10 },
-  emptyText: { color: COLORS.textSecondary, fontSize: 14 },
+  hourGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  hourCell: {
+    width: '22%', paddingVertical: 12, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border,
+    flexDirection: 'row', gap: 4,
+  },
+  hourCellPast: { opacity: 0.35 },
+  hourCellActive: { backgroundColor: COLORS.success, borderColor: COLORS.success },
+  hourCellBooked: { backgroundColor: COLORS.warning, borderColor: COLORS.warning },
+  hourText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  hourTextPast: { color: COLORS.textSecondary },
 
-  slotsList: { gap: 8, marginBottom: 12 },
-  slot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 14, backgroundColor: COLORS.success + '15', borderWidth: 1, borderColor: COLORS.success + '40' },
-  slotBooked: { backgroundColor: COLORS.warning, borderColor: COLORS.warning },
-  slotLeft: { flex: 1 },
-  slotTime: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
-  slotDur: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  bookedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ffffff44', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  bookedText: { fontSize: 11, color: '#fff', fontWeight: '700' },
-
-  btnRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  btnPrimary: { flex: 1, borderRadius: 14, overflow: 'hidden', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4 },
-  btnGradient: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  btnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  btnSecondary: { paddingHorizontal: 16, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary + '10' },
-  btnSecondaryText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
+  copyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 8, backgroundColor: COLORS.primary + '10', borderRadius: 12 },
+  copyBtnText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
 
   modalBackdrop: { flex: 1, backgroundColor: '#0008', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: '90%' },
+  modalSheet: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: '92%' },
   sheetHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 14 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   modalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  modalDate: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 18, textTransform: 'capitalize' },
+  modalSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
 
-  fieldLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700', marginBottom: 8, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
-  timeChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, minWidth: 48, alignItems: 'center' },
-  timeChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  timeChipText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  timeChipTextActive: { color: '#fff' },
+  fieldLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700', marginBottom: 8, marginTop: 14, textTransform: 'uppercase', letterSpacing: 0.4 },
 
-  durOption: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
-  durOptionActive: { backgroundColor: COLORS.primary + '08', borderColor: COLORS.primary },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
-  radioActive: { borderColor: COLORS.primary },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },
-  durLabel: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  durSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  dayChip: { width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  dayChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  dayChipText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  dayChipTextActive: { color: '#fff' },
+
+  weekChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
+  weekChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  weekChipText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  weekChipTextActive: { color: '#fff' },
+
+  rangeRow: { gap: 12 },
+  rangeGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rangeLabel: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '700', width: 18 },
+  hourChip: { minWidth: 44, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  hourChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  hourChipText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  hourChipTextActive: { color: '#fff' },
+
+  previewBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: COLORS.primary + '10', borderRadius: 10, marginTop: 14 },
+  previewText: { flex: 1, fontSize: 13, color: COLORS.text, fontWeight: '600' },
+
+  applyBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 16, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4 },
+  applyBtnInner: { height: 54, alignItems: 'center', justifyContent: 'center' },
+  applyBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 
   helpCard: { backgroundColor: COLORS.white, borderRadius: 18, padding: 22, marginHorizontal: 24, maxWidth: 480, alignSelf: 'center' as any, marginBottom: 'auto', marginTop: 'auto' },
   helpText: { fontSize: 14, color: COLORS.text, lineHeight: 22, marginTop: 12 },
