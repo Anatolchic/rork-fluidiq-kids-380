@@ -20,6 +20,7 @@ import { registerForPushNotifications, savePushToken } from '../lib/notification
 import { useAuthStore } from '../stores/auth';
 import { COLORS } from '../lib/constants';
 import { VpnNotice } from '../components/VpnNotice';
+import { useIsDark } from '../lib/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -151,7 +152,7 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StatusBar style="dark" />
+      <ThemedRoot />
       <VpnNotice />
         <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }}>
           <Stack.Screen name="(auth)" />
@@ -181,6 +182,22 @@ export default function RootLayout() {
 // и в браузере выглядит «крупным». Оборачиваем приложение в контейнер с
 // max-width=480px, центрируем и подкладываем мягкий фон вокруг. На native
 // (iOS/Android) этот компонент — просто проброс детей.
+/**
+ * ThemedRoot: применяет тёмную тему к статусбару, body-фону на web и
+ * инжектит CSS variables. Экраны используют константный COLORS, но
+ * рамка и общий системный chrome реагируют на выбор темы юзера.
+ * Полный переход экранов на useColors() — отдельная задача (>100 файлов).
+ */
+function ThemedRoot() {
+  const isDark = useIsDark();
+  // Web: инжектим CSS overrides в body для базового background
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty('color-scheme', isDark ? 'dark' : 'light');
+    document.body.style.background = isDark ? '#0A0E1A' : COLORS.background;
+  }
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+}
+
 function WebFrame({ children }: { children: React.ReactNode }) {
   if (Platform.OS !== 'web') return <>{children}</>;
   return (
