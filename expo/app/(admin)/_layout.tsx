@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Slot, Tabs, router, useSegments } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Users, GraduationCap, Calendar, DollarSign, MessageSquare, Settings, User, LogOut, FileCheck, ScrollText } from 'lucide-react-native';
+import { Home, Users, GraduationCap, Calendar, DollarSign, MessageSquare, Settings, User, LogOut, FileCheck, ScrollText, ArrowUpRight } from 'lucide-react-native';
 import supabase from '../../lib/supabase';
 import { COLORS } from '../../lib/constants';
 import { useAuthStore } from '../../stores/auth';
@@ -14,6 +14,7 @@ const NAV = [
   { route: 'tutors', path: '/(admin)/tutors', label: 'Репетиторы', icon: GraduationCap },
   { route: 'bookings', path: '/(admin)/bookings', label: 'Сделки', icon: Calendar },
   { route: 'payments', path: '/(admin)/payments', label: 'Платежи', icon: DollarSign },
+  { route: 'payouts', path: '/(admin)/payouts', label: 'Выводы', icon: ArrowUpRight },
   { route: 'tickets', path: '/(admin)/tickets', label: 'Обращения', icon: MessageSquare },
   { route: 'verifications', path: '/(admin)/verifications', label: 'Документы', icon: FileCheck },
   { route: 'audit', path: '/(admin)/audit', label: 'Журнал', icon: ScrollText },
@@ -86,6 +87,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="tutors" options={{ title: 'Репет.', tabBarIcon: ({ color, size }) => <GraduationCap color={color} size={size} /> }} />
       <Tabs.Screen name="bookings" options={{ title: 'Сделки', tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} /> }} />
       <Tabs.Screen name="payments" options={{ title: 'Деньги', tabBarIcon: ({ color, size }) => <DollarSign color={color} size={size} /> }} />
+      <Tabs.Screen name="payouts" options={{ title: 'Выводы', tabBarIcon: ({ color, size }) => <ArrowUpRight color={color} size={size} /> }} />
       <Tabs.Screen name="tickets" options={{ title: 'Обращ.', tabBarIcon: ({ color, size }) => <MessageSquare color={color} size={size} /> }} />
       <Tabs.Screen name="verifications" options={{ title: 'Док.', tabBarIcon: ({ color, size }) => <FileCheck color={color} size={size} /> }} />
       <Tabs.Screen name="audit" options={{ title: 'Журнал', tabBarIcon: ({ color, size }) => <ScrollText color={color} size={size} /> }} />
