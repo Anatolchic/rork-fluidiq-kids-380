@@ -559,7 +559,7 @@ function TutorCard({ tutor, compact, isPro, index }: { tutor: TutorProfile; comp
         </View>
 
         <View style={styles.cardRow}>
-          {/* Аватар 72×72 */}
+          {/* Аватар 68×68 (компактнее) */}
           <View style={styles.avatarWrap}>
             {tutor.photo_url ? (
               <Image source={{ uri: tutor.photo_url }} style={styles.cardAvatarImg} />
@@ -570,9 +570,6 @@ function TutorCard({ tutor, compact, isPro, index }: { tutor: TutorProfile; comp
               >
                 <Text style={styles.cardAvatarText}>{tutor.name.charAt(0).toUpperCase()}</Text>
               </LinearGradient>
-            )}
-            {isPro && (
-              <View style={styles.proRing} pointerEvents="none" />
             )}
           </View>
 
@@ -614,16 +611,20 @@ function TutorCard({ tutor, compact, isPro, index }: { tutor: TutorProfile; comp
             <Text style={styles.cardSubjects} numberOfLines={1}>
               {tutor.subjects.slice(0, 3).join(' · ')}
             </Text>
-            <Text style={styles.cardLevels} numberOfLines={1}>
-              {tutor.levels.slice(0, 2).join(', ')}
-            </Text>
-
-            {tutor.experience_years > 0 && (
-              <View style={styles.expRow}>
-                <TrendingUp size={11} color={COLORS.textSecondary} />
-                <Text style={styles.cardExp}>Опыт: {tutor.experience_years} {plural(tutor.experience_years, 'год', 'года', 'лет')}</Text>
-              </View>
-            )}
+            <View style={styles.metaRow}>
+              <Text style={styles.metaText} numberOfLines={1}>
+                {tutor.levels.slice(0, 2).join(', ')}
+              </Text>
+              {tutor.experience_years > 0 && (
+                <>
+                  <View style={styles.metaDot} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <TrendingUp size={10} color={COLORS.textSecondary} />
+                    <Text style={styles.metaText}>{tutor.experience_years} {plural(tutor.experience_years, 'год', 'года', 'лет')}</Text>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
         </View>
       </Pressable>
@@ -796,27 +797,23 @@ const styles = StyleSheet.create({
   // Карточка
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 18,
+    padding: 14,
     marginHorizontal: 16,
     ...cardShadow,
     position: 'relative',
   },
   cardPro: { borderWidth: 1.5, borderColor: '#FFD700' + '60' },
-  cardRow: { flexDirection: 'row', gap: 14 },
+  cardRow: { flexDirection: 'row', gap: 12 },
 
-  // Avatar 72×72
+  // Avatar 64×64 компактнее
   avatarWrap: { position: 'relative' },
   cardAvatar: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 64, height: 64, borderRadius: 32,
     justifyContent: 'center', alignItems: 'center',
   },
-  cardAvatarImg: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.primaryLight },
-  cardAvatarText: { fontSize: 28, fontWeight: '800', color: '#fff' },
-  proRing: {
-    position: 'absolute', top: -3, left: -3, right: -3, bottom: -3,
-    borderRadius: 40, borderWidth: 2, borderColor: '#FFD700',
-  },
+  cardAvatarImg: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.primaryLight },
+  cardAvatarText: { fontSize: 26, fontWeight: '800', color: '#fff' },
 
   // Price pill
   pricePill: {
@@ -829,8 +826,8 @@ const styles = StyleSheet.create({
   pricePillText: { fontSize: 14, fontWeight: '800', color: COLORS.primary, letterSpacing: -0.3 },
   pricePillUnit: { fontSize: 10, color: COLORS.primary, fontWeight: '600' },
 
-  cardBody: { flex: 1, gap: 4, paddingRight: 70 },
-  cardName: { fontSize: 17, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
+  cardBody: { flex: 1, gap: 3, paddingRight: 66 },
+  cardName: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
 
   badgesRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 },
   proBadge: {
@@ -850,7 +847,7 @@ const styles = StyleSheet.create({
   reviewsText: { fontSize: 11, color: COLORS.textSecondary },
 
   cardSubjects: { fontSize: 13, color: COLORS.primary, fontWeight: '600', marginTop: 4 },
-  cardLevels: { fontSize: 12, color: COLORS.textSecondary },
-  expRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  cardExp: { fontSize: 12, color: COLORS.textSecondary },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' },
+  metaText: { fontSize: 12, color: COLORS.textSecondary },
+  metaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: COLORS.textSecondary + '80' },
 });
