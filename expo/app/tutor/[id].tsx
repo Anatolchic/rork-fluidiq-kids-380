@@ -140,42 +140,51 @@ export default function PublicTutorProfile() {
   return (
     <SafeAreaView style={s.container}>
       <ScrollView contentContainerStyle={[s.scroll, { maxWidth: contentMaxWidth }]}>
-        <View style={s.avatarBlock}>
-          {tutor.photo_url ? (
-            <Image source={{ uri: tutor.photo_url }} style={s.avatarImg} />
-          ) : (
-            <View style={s.avatar}>
-              <Text style={s.avatarText}>{tutor.name.charAt(0).toUpperCase()}</Text>
-            </View>
-          )}
-          <View style={s.nameRow}>
-            <Text style={s.name}>{tutor.name}</Text>
-            {isPro && (
-              <View style={s.proBadge}>
-                <Star size={12} color="#fff" fill="#fff" />
-                <Text style={s.proBadgeText}>PRO</Text>
+        {/* Hero: аватар слева, инфа справа */}
+        <View style={s.heroBlock}>
+          <View style={s.heroAvatarWrap}>
+            {tutor.photo_url ? (
+              <Image source={{ uri: tutor.photo_url }} style={s.avatarImg} />
+            ) : (
+              <View style={s.avatar}>
+                <Text style={s.avatarText}>{tutor.name.charAt(0).toUpperCase()}</Text>
               </View>
             )}
             {profile?.role === 'student' && (
               <TouchableOpacity
                 onPress={toggleFavorite}
                 disabled={favLoading}
-                style={s.favBtn}
+                style={s.favBtnCorner}
                 hitSlop={8}
               >
                 <Heart
-                  size={22}
+                  size={20}
                   color={isFav ? COLORS.error : COLORS.textSecondary}
-                  fill={isFav ? COLORS.error : 'transparent'}
+                  fill={isFav ? COLORS.error : COLORS.white}
                 />
               </TouchableOpacity>
             )}
           </View>
-          <View style={s.ratingRow}>
-            <Star size={16} color={COLORS.star} fill={COLORS.star} />
-            <Text style={s.rating}>{tutor.rating > 0 ? `${tutor.rating.toFixed(1)} (${tutor.reviews_count} отзывов)` : 'Новый профиль'}</Text>
+          <View style={{ flex: 1, gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text style={s.name}>{tutor.name}</Text>
+              {isPro && (
+                <View style={s.proBadge}>
+                  <Star size={11} color="#fff" fill="#fff" />
+                  <Text style={s.proBadgeText}>PRO</Text>
+                </View>
+              )}
+            </View>
+            <View style={s.metricsRow}>
+              <View style={s.metric}>
+                <Star size={13} color={COLORS.star} fill={COLORS.star} />
+                <Text style={s.metricValue}>{tutor.rating > 0 ? tutor.rating.toFixed(1) : '—'}</Text>
+                <Text style={s.metricLabel}>{tutor.reviews_count > 0 ? `(${tutor.reviews_count})` : 'Новый'}</Text>
+              </View>
+              <View style={s.metricDot} />
+              <Text style={s.price}>{(tutor.price_per_hour / 100).toLocaleString('ru')} ₽<Text style={s.priceUnit}>/час</Text></Text>
+            </View>
           </View>
-          <Text style={s.price}>{(tutor.price_per_hour / 100).toLocaleString('ru')} ₽/час</Text>
         </View>
 
         <View style={s.section}>
@@ -279,17 +288,35 @@ const s = StyleSheet.create({
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   empty: { fontSize: 16, color: COLORS.textSecondary },
   scroll: { padding: 20, gap: 16, paddingBottom: 40, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
-  avatarBlock: { alignItems: 'center', gap: 6, paddingVertical: 16 },
-  avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  avatarImg: { width: 100, height: 100, borderRadius: 50, marginBottom: 8 },
-  avatarText: { fontSize: 40, fontWeight: '700', color: COLORS.primary },
-  name: { fontSize: 24, fontWeight: '700', color: COLORS.text },
+  heroBlock: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: COLORS.white, borderRadius: 18, padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+  },
+  heroAvatarWrap: { position: 'relative' },
+  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
+  avatarImg: { width: 76, height: 76, borderRadius: 38 },
+  avatarText: { fontSize: 30, fontWeight: '800', color: COLORS.primary },
+  favBtnCorner: {
+    position: 'absolute', bottom: -4, right: -4,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
+  },
+  name: { fontSize: 20, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
+  metricsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  metric: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metricValue: { fontSize: 14, fontWeight: '800', color: COLORS.text },
+  metricLabel: { fontSize: 12, color: COLORS.textSecondary },
+  metricDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: COLORS.textSecondary },
+  priceUnit: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' },
   proBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   proBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rating: { fontSize: 14, color: COLORS.textSecondary },
-  price: { fontSize: 22, fontWeight: '700', color: COLORS.primary, marginTop: 8 },
+  rating: { fontSize: 13, color: COLORS.textSecondary },
+  price: { fontSize: 18, fontWeight: '800', color: COLORS.primary, letterSpacing: -0.3 },
   section: { gap: 10, backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },

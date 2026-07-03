@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { format, differenceInMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar, Clock, BookOpen, Target, MessageSquare, Video, X, AlertTriangle, Repeat, Star } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import supabase from '../../lib/supabase';
 import { COLORS, BOOKING_STATUS_LABELS, MIN_BALANCE_KOPECKS } from '../../lib/constants';
 import { Booking } from '../../lib/types';
@@ -114,13 +115,21 @@ export default function BookingDetails() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll, { maxWidth: contentMaxWidth }]}>
-        <View style={styles.statusCard}>
-          <View style={[styles.statusPill, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
-            <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>{BOOKING_STATUS_LABELS[booking.status]}</Text>
+        <LinearGradient
+          colors={[getStatusColor(booking.status) + '18', getStatusColor(booking.status) + '05']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={styles.statusCard}
+        >
+          <View style={[styles.statusPill, { backgroundColor: getStatusColor(booking.status) }]}>
+            <View style={[styles.statusDot, { backgroundColor: '#fff' }]} />
+            <Text style={styles.statusText}>{BOOKING_STATUS_LABELS[booking.status]}</Text>
           </View>
           <Text style={styles.subject}>{booking.subject}</Text>
-          <Text style={styles.price}>{(booking.price / 100).toLocaleString('ru')} ₽</Text>
-        </View>
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>{(booking.price / 100).toLocaleString('ru')} ₽</Text>
+            <Text style={styles.priceMeta}>· {booking.duration} мин</Text>
+          </View>
+        </LinearGradient>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{isStudent ? 'Репетитор' : 'Ученик'}</Text>
@@ -138,10 +147,24 @@ export default function BookingDetails() {
         </View>
 
         <View style={styles.card}>
-          <View style={styles.line}><Calendar size={16} color={COLORS.primary} /><Text style={styles.lineText}>{format(startDate, 'd MMMM yyyy, EEEE', { locale: ru })}</Text></View>
-          <View style={styles.line}><Clock size={16} color={COLORS.primary} /><Text style={styles.lineText}>{format(startDate, 'HH:mm')} · {booking.duration} мин</Text></View>
-          <View style={styles.line}><BookOpen size={16} color={COLORS.primary} /><Text style={styles.lineText}>Уровень: {booking.level}</Text></View>
-          {booking.topic && <View style={styles.line}><Target size={16} color={COLORS.primary} /><Text style={styles.lineText}>{booking.topic}</Text></View>}
+          <View style={styles.line}>
+            <View style={styles.iconChip}><Calendar size={14} color={COLORS.primary} /></View>
+            <Text style={styles.lineText}>{format(startDate, 'd MMMM yyyy, EEEE', { locale: ru })}</Text>
+          </View>
+          <View style={styles.line}>
+            <View style={styles.iconChip}><Clock size={14} color={COLORS.primary} /></View>
+            <Text style={styles.lineText}>{format(startDate, 'HH:mm')} · {booking.duration} мин</Text>
+          </View>
+          <View style={styles.line}>
+            <View style={styles.iconChip}><BookOpen size={14} color={COLORS.primary} /></View>
+            <Text style={styles.lineText}>Уровень: {booking.level}</Text>
+          </View>
+          {booking.topic && (
+            <View style={styles.line}>
+              <View style={styles.iconChip}><Target size={14} color={COLORS.primary} /></View>
+              <Text style={styles.lineText}>{booking.topic}</Text>
+            </View>
+          )}
         </View>
 
         {booking.series_id && (
@@ -257,20 +280,27 @@ const styles = StyleSheet.create({
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   empty: { fontSize: 16, color: COLORS.textSecondary },
   scroll: { padding: 16, gap: 12, paddingBottom: 24, maxWidth: 720, alignSelf: 'center' as any, width: '100%' },
-  statusCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20, alignItems: 'center', gap: 8 },
-  statusPill: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  statusText: { fontSize: 13, fontWeight: '700' },
-  subject: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginTop: 4 },
-  price: { fontSize: 26, fontWeight: '800', color: COLORS.primary },
-  card: { backgroundColor: COLORS.white, borderRadius: 14, padding: 14, gap: 10 },
-  cardTitle: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statusCard: { borderRadius: 20, padding: 24, alignItems: 'center', gap: 10, marginBottom: 4 },
+  statusPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 12, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
+  subject: { fontSize: 22, fontWeight: '800', color: COLORS.text, marginTop: 6, letterSpacing: -0.3 },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
+  price: { fontSize: 30, fontWeight: '800', color: COLORS.primary, letterSpacing: -0.5 },
+  priceMeta: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' },
+  card: {
+    backgroundColor: COLORS.white, borderRadius: 16, padding: 16, gap: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+  },
+  cardTitle: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { fontSize: 18, fontWeight: '700', color: COLORS.primary },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontSize: 20, fontWeight: '800', color: COLORS.primary },
   counterpartName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   counterpartMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  lineText: { fontSize: 14, color: COLORS.text, flex: 1 },
+  iconChip: { width: 28, height: 28, borderRadius: 9, backgroundColor: COLORS.primary + '15', justifyContent: 'center', alignItems: 'center' },
+  lineText: { fontSize: 14, color: COLORS.text, flex: 1, fontWeight: '500' },
   payCard: { backgroundColor: COLORS.success + '10', borderRadius: 14, padding: 14, gap: 6, borderWidth: 1, borderColor: COLORS.success + '30' },
   payTitle: { fontSize: 13, fontWeight: '700', color: COLORS.success },
   payMethod: { fontSize: 14, fontWeight: '600', color: COLORS.text },
